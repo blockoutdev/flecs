@@ -1677,6 +1677,9 @@ FLECS_API extern const ecs_entity_t EcsWith;
  */
 FLECS_API extern const ecs_entity_t EcsOneOf;
 
+/** Allow flattening for relationship. */
+FLECS_API extern const ecs_entity_t EcsCanFlatten;
+
 /** Mark a component as toggleable with ecs_enable_id(). */
 FLECS_API extern const ecs_entity_t EcsCanToggle;
 

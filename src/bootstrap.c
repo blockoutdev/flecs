@@ -622,7 +622,7 @@ ecs_table_t* flecs_bootstrap_component_table(
      * can no longer be done after they are in use. */
     ecs_id_record_t *idr = flecs_id_record_ensure(world, EcsChildOf);
     idr->flags |= EcsIdOnDeleteObjectDelete | EcsIdOnInstantiateDontInherit |
-        EcsIdTraversable | EcsIdTag;
+        EcsIdTraversable | EcsIdCanFlatten | EcsIdTag;
 
     /* Initialize id records cached on world */
     world->idr_childof_wildcard = flecs_id_record_ensure(world, 
@@ -739,13 +739,6 @@ void flecs_bootstrap(
     ecs_make_alive(world, EcsIsA);
     ecs_make_alive(world, EcsWildcard);
     ecs_make_alive(world, EcsAny);
-    ecs_make_alive(world, EcsPairIsTag);
-    ecs_make_alive(world, EcsCanToggle);
-    ecs_make_alive(world, EcsTrait);
-    ecs_make_alive(world, EcsRelationship);
-    ecs_make_alive(world, EcsTarget);
-    ecs_make_alive(world, EcsSparse);
-    ecs_make_alive(world, EcsUnion);
 
     /* Register type information for builtin components */
     flecs_type_info_init(world, EcsComponent, { 
@@ -873,6 +866,7 @@ void flecs_bootstrap(
     flecs_bootstrap_trait(world, EcsWith);
     flecs_bootstrap_trait(world, EcsOneOf);
     flecs_bootstrap_trait(world, EcsCanToggle);
+    flecs_bootstrap_trait(world, EcsCanFlatten);
     flecs_bootstrap_trait(world, EcsTrait);
     flecs_bootstrap_trait(world, EcsRelationship);
     flecs_bootstrap_trait(world, EcsTarget);
@@ -959,6 +953,7 @@ void flecs_bootstrap(
     ecs_add_id(world, EcsChildOf, EcsTrait);
     ecs_add_id(world, EcsChildOf, EcsAcyclic);
     ecs_add_id(world, EcsChildOf, EcsTraversable);
+    ecs_add_id(world, EcsChildOf, EcsCanFlatten);
     ecs_add_pair(world, EcsChildOf, EcsOnInstantiate, EcsDontInherit);
     ecs_add_pair(world, ecs_id(EcsIdentifier), EcsOnInstantiate, EcsDontInherit);
 
@@ -1034,6 +1029,15 @@ void flecs_bootstrap(
         .events = {EcsOnAdd},
         .callback = flecs_register_trait,
         .ctx = &toggle_trait
+    });
+
+    static ecs_on_trait_ctx_t flatten_trait = { EcsIdCanFlatten, 0 };
+    ecs_observer(world, {
+        .query.terms = {{ .id = EcsCanFlatten }},
+        .query.flags = EcsQueryMatchPrefab|EcsQueryMatchDisabled,
+        .events = {EcsOnAdd},
+        .callback = flecs_register_trait,
+        .ctx = &flatten_trait
     });
 
     static ecs_on_trait_ctx_t with_trait = { EcsIdWith, 0 };

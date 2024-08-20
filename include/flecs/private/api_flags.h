@@ -73,7 +73,8 @@ extern "C" {
 #define EcsIdTag                       (1u << 11)
 #define EcsIdWith                      (1u << 12)
 #define EcsIdCanToggle                 (1u << 13)
-#define EcsIdIsTransitive              (1u << 14)
+#define EcsIdCanFlatten                (1u << 14)
+#define EcsIdIsTransitive              (1u << 15)
 
 #define EcsIdHasOnAdd                  (1u << 16) /* Same values as table flags */
 #define EcsIdHasOnRemove               (1u << 17) 
