@@ -1466,6 +1466,16 @@ typedef struct EcsDefaultChildComponent {
     ecs_id_t component;  /**< Default component id. */
 } EcsDefaultChildComponent;
 
+/** Component that stores parent for flattened hierarchy */
+typedef struct EcsParent {
+    ecs_entity_t parent;
+} EcsParent;
+
+/** Component that stores children for flattened hierarchy */
+typedef struct EcsChildren {
+    ecs_vec_t children; /**< vec<ecs_entity_t> */
+} EcsChildren;
+
 /** @} */
 /** @} */
 
@@ -1517,6 +1527,12 @@ FLECS_API extern const ecs_entity_t ecs_id(EcsPoly);
 
 /** DefaultChildComponent component id. */
 FLECS_API extern const ecs_entity_t ecs_id(EcsDefaultChildComponent);
+
+/** Component that stores parent for flattened hierarchy */
+FLECS_API extern const ecs_entity_t ecs_id(EcsParent);
+
+/** Component that stores children for flattened hierarchy */
+FLECS_API extern const ecs_entity_t ecs_id(EcsChildren);
 
 /** Tag added to queries. */
 FLECS_API extern const ecs_entity_t EcsQuery;

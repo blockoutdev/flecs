@@ -97,10 +97,7 @@ typedef struct ecs_instantiate_ctx_t {
 void flecs_instantiate(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    const ecs_instantiate_ctx_t *ctx);
+    ecs_entity_t instance);
 
 void* flecs_get_base_component(
     const ecs_world_t *world,

@@ -191,7 +191,8 @@ int json_ser_vector(
     void *array = ecs_vec_first(value);
 
     /* Serialize contiguous buffer of vector */
-    return flecs_json_ser_type_elements(world, v->type, array, count, str, false);
+    return flecs_json_ser_type_elements(
+        world, v->type, array, count, str, false);
 }
 
 typedef struct json_serializer_ctx_t {

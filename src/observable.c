@@ -1272,7 +1272,13 @@ repeat_event:
                              * from being called recursively, in case prefab
                              * children also have IsA relationships. */
                             world->stages[0]->base = tgt;
-                            flecs_instantiate(world, tgt, table, offset, count, NULL);
+                            const ecs_entity_t *instances = 
+                                ecs_table_entities(table);
+                            int32_t e, instance_count = ecs_table_count(table);
+                            for (e = 0; e < instance_count; e ++) {
+                                flecs_instantiate(
+                                    world, tgt, instances[offset + e]);
+                            }
                             world->stages[0]->base = 0;
                         }
 

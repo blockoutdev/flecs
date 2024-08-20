@@ -3075,10 +3075,7 @@ typedef struct ecs_instantiate_ctx_t {
 void flecs_instantiate(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    const ecs_instantiate_ctx_t *ctx);
+    ecs_entity_t instance);
 
 void* flecs_get_base_component(
     const ecs_world_t *world,
@@ -3397,6 +3394,28 @@ static ECS_DTOR(EcsPoly, ptr, {
         ecs_assert(dtor != NULL, ECS_INTERNAL_ERROR, NULL);
         dtor[0](ptr->poly);
     }
+})
+
+
+/* -- Children component -- */
+
+static ECS_CTOR(EcsChildren, ptr, {
+    ecs_vec_init_t(NULL, &ptr->children, ecs_entity_t, 0);
+})
+
+static ECS_COPY(EcsChildren, dst, src, {
+    ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    dst->children = ecs_vec_copy_t(NULL, &src->children, ecs_entity_t);
+})
+
+static ECS_MOVE(EcsChildren, dst, src, {
+    ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    *dst = *src;
+    ecs_os_memset_t(src, 0, EcsChildren);
+})
+
+static ECS_DTOR(EcsChildren, ptr, {
+    ecs_vec_fini_t(NULL, &ptr->children, ecs_entity_t);
 })
 
 
@@ -3952,8 +3971,8 @@ void flecs_bootstrap(
 
     /* Ensure builtin ids are alive */
     ecs_make_alive(world, ecs_id(EcsComponent));
-    ecs_make_alive(world, EcsFinal);
     ecs_make_alive(world, ecs_id(EcsIdentifier));
+    ecs_make_alive(world, EcsFinal);
     ecs_make_alive(world, EcsName);
     ecs_make_alive(world, EcsSymbol);
     ecs_make_alive(world, EcsAlias);
@@ -4004,6 +4023,15 @@ void flecs_bootstrap(
         .ctor = flecs_default_ctor,
     });
 
+    flecs_type_info_init(world, EcsParent, { 0 });
+
+    flecs_type_info_init(world, EcsChildren, {
+        .ctor = ecs_ctor(EcsChildren),
+        .copy = ecs_copy(EcsChildren),
+        .move = ecs_move(EcsChildren),
+        .dtor = ecs_dtor(EcsChildren)
+    });
+
     /* Create and cache often used id records on world */
     flecs_init_id_records(world);
 
@@ -4018,6 +4046,8 @@ void flecs_bootstrap(
     flecs_bootstrap_builtin_t(world, table, EcsComponent);
     flecs_bootstrap_builtin_t(world, table, EcsPoly);
     flecs_bootstrap_builtin_t(world, table, EcsDefaultChildComponent);
+    flecs_bootstrap_builtin_t(world, table, EcsParent);
+    flecs_bootstrap_builtin_t(world, table, EcsChildren);
 
     /* Initialize default entity id range */
     world->info.last_component_id = EcsFirstUserComponentId;
@@ -4161,11 +4191,17 @@ void flecs_bootstrap(
     ecs_add_id(world, EcsOnDeleteTarget, EcsRelationship);
     ecs_add_id(world, EcsOnInstantiate, EcsRelationship);
     ecs_add_id(world, ecs_id(EcsIdentifier), EcsRelationship);
+    ecs_add_id(world, ecs_id(EcsParent), EcsRelationship);
+    ecs_add_id(world, ecs_id(EcsChildren), EcsRelationship);
 
     /* Targets */
     ecs_add_id(world, EcsOverride, EcsTarget);
     ecs_add_id(world, EcsInherit, EcsTarget);
     ecs_add_id(world, EcsDontInherit, EcsTarget);
+
+    /* Traits */
+    ecs_add_id(world, ecs_id(EcsParent), EcsTrait);
+    ecs_add_id(world, ecs_id(EcsChildren), EcsTrait);
 
     /* Sync properties of ChildOf and Identifier with bootstrapped flags */
     ecs_add_pair(world, EcsChildOf, EcsOnDeleteTarget, EcsDelete);
@@ -5305,211 +5341,47 @@ static
 void flecs_instantiate_children(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    ecs_table_t *child_table,
-    const ecs_instantiate_ctx_t *ctx)
+    ecs_entity_t instance,
+    EcsChildren *children,
+    ecs_table_t *child_table)
 {
-    if (!ecs_table_count(child_table)) {
+    int32_t c, child_count = ecs_table_count(child_table);
+    if (!child_count) {
         return;
     }
 
-    ecs_type_t type = child_table->type;
-    ecs_data_t *child_data = &child_table->data;
+    const ecs_entity_t *child_ids = ecs_table_entities(child_table);
+    for (c = 0; c < child_count; c ++) {
+        ecs_entity_t child = child_ids[c];
 
-    ecs_entity_t slot_of = 0;
-    ecs_entity_t *ids = type.array;
-    int32_t type_count = type.count;
+        ecs_table_t *instance_table = ecs_table_add_id(
+            world, NULL, ecs_pair_t(EcsParent, EcsChildOf));
+        instance_table = ecs_table_add_id(
+            world, instance_table, ecs_isa(child));
 
-    /* Instantiate child table for each instance */
+        int16_t column = ecs_table_get_column_index(world, instance_table,
+            ecs_pair_t(EcsParent, EcsChildOf));
+        ecs_assert(column >= 0, ECS_INTERNAL_ERROR, NULL);
 
-    /* Create component array for creating the table */
-    ecs_table_diff_t diff = { .added = {0}};
-    diff.added.array = ecs_os_alloca_n(ecs_entity_t, type_count + 1);
-    void **component_data = ecs_os_alloca_n(void*, type_count + 1);
+        ecs_entity_t instance_child = ecs_new_w_table(
+            world, instance_table);
 
-    /* Copy in component identifiers. Find the base index in the component
-     * array, since we'll need this to replace the base with the instance id */
-    int j, i, childof_base_index = -1;
-    for (i = 0; i < type_count; i ++) {
-        ecs_id_t id = ids[i];
+        EcsParent *p = ECS_ELEM_T(instance_table->data.columns[column].data,
+            EcsParent, instance_table->data.count - 1);
+        p->parent = instance;
 
-        /* If id has DontInherit flag don't inherit it, except for the name
-         * and ChildOf pairs. The name is preserved so applications can lookup
-         * the instantiated children by name. The ChildOf pair is replaced later
-         * with the instance parent. */
-        if ((id != ecs_pair(ecs_id(EcsIdentifier), EcsName)) &&
-            ECS_PAIR_FIRST(id) != EcsChildOf) 
-        {
-            ecs_table_record_t *tr = &child_table->_->records[i];
-            ecs_id_record_t *idr = (ecs_id_record_t*)tr->hdr.cache;
-            if (idr->flags & EcsIdOnInstantiateDontInherit) {
-                continue;
-            }
-        }
+        ecs_entity_t *elem = ecs_vec_append_t(
+            NULL, &children->children, ecs_entity_t);
+        elem[0] = instance_child;
 
-        /* If child is a slot, keep track of which parent to add it to, but
-         * don't add slot relationship to child of instance. If this is a child
-         * of a prefab, keep the SlotOf relationship intact. */
-        if (!(table->flags & EcsTableIsPrefab)) {
-            if (ECS_IS_PAIR(id) && ECS_PAIR_FIRST(id) == EcsSlotOf) {
-                ecs_assert(slot_of == 0, ECS_INTERNAL_ERROR, NULL);
-                slot_of = ecs_pair_second(world, id);
-                continue;
-            }
-        }
-
-        /* Keep track of the element that creates the ChildOf relationship with
-         * the prefab parent. We need to replace this element to make sure the
-         * created children point to the instance and not the prefab */ 
-        if (ECS_HAS_RELATION(id, EcsChildOf) && 
-           (ECS_PAIR_SECOND(id) == (uint32_t)base)) {
-            childof_base_index = diff.added.count;
-        }
-
-        /* If this is a pure override, make sure we have a concrete version of the
-         * component. This relies on the fact that overrides always come after
-         * concrete components in the table type so we can check the components
-         * that have already been added to the child table type. */
-        if (ECS_HAS_ID_FLAG(id, AUTO_OVERRIDE)) {
-            ecs_id_t concreteId = id & ~ECS_AUTO_OVERRIDE;
-            flecs_child_type_insert(&diff.added, component_data, concreteId);
-            continue;
-        }
-
-        int32_t storage_index = ecs_table_type_to_column_index(child_table, i);
-        if (storage_index != -1) {
-            component_data[diff.added.count] = 
-                child_data->columns[storage_index].data;
-        } else {
-            component_data[diff.added.count] = NULL;
-        }
-
-        diff.added.array[diff.added.count] = id;
-        diff.added.count ++;
-        diff.added_flags |= flecs_id_flags_get(world, id);
+        flecs_instantiate(world, child, instance_child);
     }
-
-    /* Table must contain children of base */
-    ecs_assert(childof_base_index != -1, ECS_INTERNAL_ERROR, NULL);
-
-    /* If children are added to a prefab, make sure they are prefabs too */
-    if (table->flags & EcsTableIsPrefab) {
-        if (flecs_child_type_insert(
-            &diff.added, component_data, EcsPrefab) != -1) 
-        {
-            childof_base_index ++;
-        }
-    }
-
-    /* Instantiate the prefab child table for each new instance */
-    const ecs_entity_t *instances = ecs_table_entities(table);
-    int32_t child_count = ecs_table_count(child_table);
-    ecs_entity_t *child_ids = flecs_walloc_n(world, ecs_entity_t, child_count);
-
-    for (i = row; i < count + row; i ++) {
-        ecs_entity_t instance = instances[i];
-        ecs_table_t *i_table = NULL;
- 
-        /* Replace ChildOf element in the component array with instance id */
-        diff.added.array[childof_base_index] = ecs_pair(EcsChildOf, instance);
-
-        /* Find or create table */
-        i_table = flecs_table_find_or_create(world, &diff.added);
-
-        ecs_assert(i_table != NULL, ECS_INTERNAL_ERROR, NULL);
-        ecs_assert(i_table->type.count == diff.added.count,
-            ECS_INTERNAL_ERROR, NULL);
-
-        /* The instance is trying to instantiate from a base that is also
-         * its parent. This would cause the hierarchy to instantiate itself
-         * which would cause infinite recursion. */
-        const ecs_entity_t *children = ecs_table_entities(child_table);
-
-#ifdef FLECS_DEBUG
-        for (j = 0; j < child_count; j ++) {
-            ecs_entity_t child = children[j];        
-            ecs_check(child != instance, ECS_INVALID_PARAMETER, 
-                "cycle detected in IsA relationship");
-        }
-#else
-        /* Bit of boilerplate to ensure that we don't get warnings about the
-         * error label not being used. */
-        ecs_check(true, ECS_INVALID_OPERATION, NULL);
-#endif
-
-        /* Attempt to reserve ids for children that have the same offset from
-         * the instance as from the base prefab. This ensures stable ids for
-         * instance children, even across networked applications. */
-        ecs_instantiate_ctx_t ctx_cur = {base, instance};
-        if (ctx) {
-            ctx_cur = *ctx;
-        }
-
-        for (j = 0; j < child_count; j ++) {
-            if ((uint32_t)children[j] < (uint32_t)ctx_cur.root_prefab) {
-                /* Child id is smaller than root prefab id, can't use offset */
-                child_ids[j] = ecs_new(world);
-                continue;
-            }
-
-            /* Get prefab offset, ignore lifecycle generation count */
-            ecs_entity_t prefab_offset =
-                (uint32_t)children[j] - (uint32_t)ctx_cur.root_prefab;
-            ecs_assert(prefab_offset != 0, ECS_INTERNAL_ERROR, NULL);
-
-            /* First check if any entity with the desired id exists */
-            ecs_entity_t instance_child = (uint32_t)ctx_cur.root_instance + prefab_offset;
-            ecs_entity_t alive_id = flecs_entities_get_alive(world, instance_child);
-            if (alive_id && flecs_entities_is_alive(world, alive_id)) {
-                /* Alive entity with requested id exists, can't use offset id */
-                child_ids[j] = ecs_new(world);
-                continue;
-            }
-
-            /* Id is not in use. Make it alive & match the generation of the instance. */
-            instance_child = ctx_cur.root_instance + prefab_offset;
-            flecs_entities_make_alive(world, instance_child);
-            flecs_entities_ensure(world, instance_child);
-            ecs_assert(ecs_is_alive(world, instance_child), ECS_INTERNAL_ERROR, NULL);
-            child_ids[j] = instance_child;
-        }
-
-        /* Create children */
-        int32_t child_row;
-        const ecs_entity_t *i_children = flecs_bulk_new(world, i_table, child_ids,
-            &diff.added, child_count, component_data, false, &child_row, &diff);
-
-        /* If children are slots, add slot relationships to parent */
-        if (slot_of) {
-            for (j = 0; j < child_count; j ++) {
-                ecs_entity_t child = children[j];
-                ecs_entity_t i_child = i_children[j];
-                flecs_instantiate_slot(world, base, instance, slot_of,
-                    child, i_child);
-            }
-        }
-
-        /* If prefab child table has children itself, recursively instantiate */
-        for (j = 0; j < child_count; j ++) {
-            ecs_entity_t child = children[j];
-            flecs_instantiate(world, child, i_table, child_row + j, 1, &ctx_cur);
-        }
-    }
-
-    flecs_wfree_n(world, ecs_entity_t, child_count, child_ids);
-error:
-    return;    
 }
 
 void flecs_instantiate(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    const ecs_instantiate_ctx_t *ctx)
+    ecs_entity_t instance)
 {
     ecs_record_t *record = flecs_entities_get_any(world, base);
     ecs_table_t *base_table = record->table;
@@ -5554,10 +5426,14 @@ void flecs_instantiate(
     ecs_table_cache_iter_t it;
     if (idr && flecs_table_cache_all_iter((ecs_table_cache_t*)idr, &it)) {
         ecs_os_perf_trace_push("flecs.instantiate");
+        EcsChildren *children = ecs_ensure_pair(world, instance, 
+            EcsChildren, EcsChildOf);
+        ecs_assert(children != NULL, ECS_INTERNAL_ERROR, NULL);
+
         const ecs_table_record_t *tr;
         while ((tr = flecs_table_cache_next(&it, ecs_table_record_t))) {
             flecs_instantiate_children(
-                world, base, table, row, count, tr->hdr.table, ctx);
+                world, base, instance, children, tr->hdr.table);
         }
         ecs_os_perf_trace_pop("flecs.instantiate");
     }
@@ -13872,7 +13748,13 @@ repeat_event:
                              * from being called recursively, in case prefab
                              * children also have IsA relationships. */
                             world->stages[0]->base = tgt;
-                            flecs_instantiate(world, tgt, table, offset, count, NULL);
+                            const ecs_entity_t *instances = 
+                                ecs_table_entities(table);
+                            int32_t e, instance_count = ecs_table_count(table);
+                            for (e = 0; e < instance_count; e ++) {
+                                flecs_instantiate(
+                                    world, tgt, instances[offset + e]);
+                            }
                             world->stages[0]->base = 0;
                         }
 
@@ -17737,118 +17619,120 @@ const ecs_id_t ECS_PAIR =                                          (1ull << 63);
 const ecs_id_t ECS_AUTO_OVERRIDE =                                 (1ull << 62);
 const ecs_id_t ECS_TOGGLE =                                        (1ull << 61);
 
-/** Builtin component ids */
+/* Builtin component ids */
 const ecs_entity_t ecs_id(EcsComponent) =                                   1;
 const ecs_entity_t ecs_id(EcsIdentifier) =                                  2;
 const ecs_entity_t ecs_id(EcsPoly) =                                        3;
+const ecs_entity_t ecs_id(EcsParent) =                                      4;
+const ecs_entity_t ecs_id(EcsChildren) =                                    5;
 
-/* Poly target components */
-const ecs_entity_t EcsQuery =                                               5;
-const ecs_entity_t EcsObserver =                                            6;
-const ecs_entity_t EcsSystem =                                              7;
+/* Poly target tags */
+const ecs_entity_t EcsQuery =                       FLECS_HI_COMPONENT_ID + 0;
+const ecs_entity_t EcsObserver =                    FLECS_HI_COMPONENT_ID + 1;
+const ecs_entity_t EcsSystem =                      FLECS_HI_COMPONENT_ID + 2;
 
 /* Core scopes & entities */
-const ecs_entity_t EcsWorld =                       FLECS_HI_COMPONENT_ID + 0;
-const ecs_entity_t EcsFlecs =                       FLECS_HI_COMPONENT_ID + 1;
-const ecs_entity_t EcsFlecsCore =                   FLECS_HI_COMPONENT_ID + 2;
-const ecs_entity_t EcsFlecsInternals =              FLECS_HI_COMPONENT_ID + 3;
-const ecs_entity_t EcsModule =                      FLECS_HI_COMPONENT_ID + 4;
-const ecs_entity_t EcsPrivate =                     FLECS_HI_COMPONENT_ID + 5;
-const ecs_entity_t EcsPrefab =                      FLECS_HI_COMPONENT_ID + 6;
-const ecs_entity_t EcsDisabled =                    FLECS_HI_COMPONENT_ID + 7;
-const ecs_entity_t EcsNotQueryable =                FLECS_HI_COMPONENT_ID + 8;
+const ecs_entity_t EcsWorld =                       FLECS_HI_COMPONENT_ID + 3;
+const ecs_entity_t EcsFlecs =                       FLECS_HI_COMPONENT_ID + 4;
+const ecs_entity_t EcsFlecsCore =                   FLECS_HI_COMPONENT_ID + 5;
+const ecs_entity_t EcsFlecsInternals =              FLECS_HI_COMPONENT_ID + 6;
+const ecs_entity_t EcsModule =                      FLECS_HI_COMPONENT_ID + 7;
+const ecs_entity_t EcsPrivate =                     FLECS_HI_COMPONENT_ID + 8;
+const ecs_entity_t EcsPrefab =                      FLECS_HI_COMPONENT_ID + 9;
+const ecs_entity_t EcsDisabled =                    FLECS_HI_COMPONENT_ID + 10;
+const ecs_entity_t EcsNotQueryable =                FLECS_HI_COMPONENT_ID + 11;
 
-const ecs_entity_t EcsSlotOf =                      FLECS_HI_COMPONENT_ID + 9;
-const ecs_entity_t EcsFlag =                        FLECS_HI_COMPONENT_ID + 10;
+const ecs_entity_t EcsSlotOf =                      FLECS_HI_COMPONENT_ID + 12;
+const ecs_entity_t EcsFlag =                        FLECS_HI_COMPONENT_ID + 13;
 
 /* Marker entities for query encoding */
-const ecs_entity_t EcsWildcard =                    FLECS_HI_COMPONENT_ID + 11;
-const ecs_entity_t EcsAny =                         FLECS_HI_COMPONENT_ID + 12;
-const ecs_entity_t EcsThis =                        FLECS_HI_COMPONENT_ID + 13;
-const ecs_entity_t EcsVariable =                    FLECS_HI_COMPONENT_ID + 14;
+const ecs_entity_t EcsWildcard =                    FLECS_HI_COMPONENT_ID + 14;
+const ecs_entity_t EcsAny =                         FLECS_HI_COMPONENT_ID + 15;
+const ecs_entity_t EcsThis =                        FLECS_HI_COMPONENT_ID + 16;
+const ecs_entity_t EcsVariable =                    FLECS_HI_COMPONENT_ID + 17;
 
 /* Traits */
-const ecs_entity_t EcsTransitive =                  FLECS_HI_COMPONENT_ID + 15;
-const ecs_entity_t EcsReflexive =                   FLECS_HI_COMPONENT_ID + 16;
-const ecs_entity_t EcsSymmetric =                   FLECS_HI_COMPONENT_ID + 17;
-const ecs_entity_t EcsFinal =                       FLECS_HI_COMPONENT_ID + 18;
-const ecs_entity_t EcsOnInstantiate =               FLECS_HI_COMPONENT_ID + 19;
-const ecs_entity_t EcsOverride =                    FLECS_HI_COMPONENT_ID + 20;
-const ecs_entity_t EcsInherit =                     FLECS_HI_COMPONENT_ID + 21;
-const ecs_entity_t EcsDontInherit =                 FLECS_HI_COMPONENT_ID + 22;
-const ecs_entity_t EcsPairIsTag =                   FLECS_HI_COMPONENT_ID + 23;
-const ecs_entity_t EcsExclusive =                   FLECS_HI_COMPONENT_ID + 24;
-const ecs_entity_t EcsAcyclic =                     FLECS_HI_COMPONENT_ID + 25;
-const ecs_entity_t EcsTraversable =                 FLECS_HI_COMPONENT_ID + 26;
-const ecs_entity_t EcsWith =                        FLECS_HI_COMPONENT_ID + 27;
-const ecs_entity_t EcsOneOf =                       FLECS_HI_COMPONENT_ID + 28;
-const ecs_entity_t EcsCanToggle =                   FLECS_HI_COMPONENT_ID + 29;
-const ecs_entity_t EcsTrait =                       FLECS_HI_COMPONENT_ID + 30;
-const ecs_entity_t EcsRelationship =                FLECS_HI_COMPONENT_ID + 31;
-const ecs_entity_t EcsTarget =                      FLECS_HI_COMPONENT_ID + 32;
-
+const ecs_entity_t EcsTransitive =                  FLECS_HI_COMPONENT_ID + 18;
+const ecs_entity_t EcsReflexive =                   FLECS_HI_COMPONENT_ID + 19;
+const ecs_entity_t EcsSymmetric =                   FLECS_HI_COMPONENT_ID + 20;
+const ecs_entity_t EcsFinal =                       FLECS_HI_COMPONENT_ID + 21;
+const ecs_entity_t EcsOnInstantiate =               FLECS_HI_COMPONENT_ID + 22;
+const ecs_entity_t EcsOverride =                    FLECS_HI_COMPONENT_ID + 23;
+const ecs_entity_t EcsInherit =                     FLECS_HI_COMPONENT_ID + 24;
+const ecs_entity_t EcsDontInherit =                 FLECS_HI_COMPONENT_ID + 25;
+const ecs_entity_t EcsPairIsTag =                   FLECS_HI_COMPONENT_ID + 26;
+const ecs_entity_t EcsExclusive =                   FLECS_HI_COMPONENT_ID + 27;
+const ecs_entity_t EcsAcyclic =                     FLECS_HI_COMPONENT_ID + 28;
+const ecs_entity_t EcsTraversable =                 FLECS_HI_COMPONENT_ID + 29;
+const ecs_entity_t EcsWith =                        FLECS_HI_COMPONENT_ID + 30;
+const ecs_entity_t EcsOneOf =                       FLECS_HI_COMPONENT_ID + 31;
+const ecs_entity_t EcsCanToggle =                   FLECS_HI_COMPONENT_ID + 32;
+const ecs_entity_t EcsTrait =                       FLECS_HI_COMPONENT_ID + 33;
+const ecs_entity_t EcsRelationship =                FLECS_HI_COMPONENT_ID + 34;
+const ecs_entity_t EcsTarget =                      FLECS_HI_COMPONENT_ID + 35;
 
 /* Builtin relationships */
-const ecs_entity_t EcsChildOf =                     FLECS_HI_COMPONENT_ID + 33;
-const ecs_entity_t EcsIsA =                         FLECS_HI_COMPONENT_ID + 34;
-const ecs_entity_t EcsDependsOn =                   FLECS_HI_COMPONENT_ID + 35;
+const ecs_entity_t EcsChildOf =                     FLECS_HI_COMPONENT_ID + 36;
+const ecs_entity_t EcsIsA =                         FLECS_HI_COMPONENT_ID + 37;
+const ecs_entity_t EcsDependsOn =                   FLECS_HI_COMPONENT_ID + 38;
 
 /* Identifier tags */
-const ecs_entity_t EcsName =                        FLECS_HI_COMPONENT_ID + 36;
-const ecs_entity_t EcsSymbol =                      FLECS_HI_COMPONENT_ID + 37;
-const ecs_entity_t EcsAlias =                       FLECS_HI_COMPONENT_ID + 38;
+const ecs_entity_t EcsName =                        FLECS_HI_COMPONENT_ID + 39;
+const ecs_entity_t EcsSymbol =                      FLECS_HI_COMPONENT_ID + 40;
+const ecs_entity_t EcsAlias =                       FLECS_HI_COMPONENT_ID + 41;
 
 /* Events */
-const ecs_entity_t EcsOnAdd =                       FLECS_HI_COMPONENT_ID + 39;
-const ecs_entity_t EcsOnRemove =                    FLECS_HI_COMPONENT_ID + 40;
-const ecs_entity_t EcsOnSet =                       FLECS_HI_COMPONENT_ID + 41;
-const ecs_entity_t EcsOnDelete =                    FLECS_HI_COMPONENT_ID + 43;
-const ecs_entity_t EcsOnDeleteTarget =              FLECS_HI_COMPONENT_ID + 44;
-const ecs_entity_t EcsOnTableCreate =               FLECS_HI_COMPONENT_ID + 45;
-const ecs_entity_t EcsOnTableDelete =               FLECS_HI_COMPONENT_ID + 46;
-const ecs_entity_t EcsOnTableEmpty =                FLECS_HI_COMPONENT_ID + 47;
-const ecs_entity_t EcsOnTableFill =                 FLECS_HI_COMPONENT_ID + 48;
+const ecs_entity_t EcsOnAdd =                       FLECS_HI_COMPONENT_ID + 42;
+const ecs_entity_t EcsOnRemove =                    FLECS_HI_COMPONENT_ID + 43;
+const ecs_entity_t EcsOnSet =                       FLECS_HI_COMPONENT_ID + 44;
+
+const ecs_entity_t EcsOnDelete =                    FLECS_HI_COMPONENT_ID + 45;
+const ecs_entity_t EcsOnDeleteTarget =              FLECS_HI_COMPONENT_ID + 46;
+const ecs_entity_t EcsOnTableCreate =               FLECS_HI_COMPONENT_ID + 47;
+const ecs_entity_t EcsOnTableDelete =               FLECS_HI_COMPONENT_ID + 48;
+const ecs_entity_t EcsOnTableEmpty =                FLECS_HI_COMPONENT_ID + 49;
+const ecs_entity_t EcsOnTableFill =                 FLECS_HI_COMPONENT_ID + 50;
 
 /* Timers */
-const ecs_entity_t ecs_id(EcsTickSource) =          FLECS_HI_COMPONENT_ID + 49;
-const ecs_entity_t ecs_id(EcsTimer) =               FLECS_HI_COMPONENT_ID + 50;
-const ecs_entity_t ecs_id(EcsRateFilter) =          FLECS_HI_COMPONENT_ID + 51;
+const ecs_entity_t ecs_id(EcsTickSource) =          FLECS_HI_COMPONENT_ID + 51;
+const ecs_entity_t ecs_id(EcsTimer) =               FLECS_HI_COMPONENT_ID + 52;
+const ecs_entity_t ecs_id(EcsRateFilter) =          FLECS_HI_COMPONENT_ID + 53;
 
 /* Actions */
-const ecs_entity_t EcsRemove =                      FLECS_HI_COMPONENT_ID + 52;
-const ecs_entity_t EcsDelete =                      FLECS_HI_COMPONENT_ID + 53;
-const ecs_entity_t EcsPanic =                       FLECS_HI_COMPONENT_ID + 54;
+const ecs_entity_t EcsRemove =                      FLECS_HI_COMPONENT_ID + 54;
+const ecs_entity_t EcsDelete =                      FLECS_HI_COMPONENT_ID + 55;
+const ecs_entity_t EcsPanic =                       FLECS_HI_COMPONENT_ID + 56;
 
 /* Storage */
-const ecs_entity_t EcsSparse =                      FLECS_HI_COMPONENT_ID + 55;
-const ecs_entity_t EcsUnion =                       FLECS_HI_COMPONENT_ID + 56;
+const ecs_entity_t EcsSparse =                      FLECS_HI_COMPONENT_ID + 57;
+const ecs_entity_t EcsUnion =                       FLECS_HI_COMPONENT_ID + 58;
 
 /* Misc */
-const ecs_entity_t ecs_id(EcsDefaultChildComponent) = FLECS_HI_COMPONENT_ID + 57;
+const ecs_entity_t ecs_id(EcsDefaultChildComponent) = FLECS_HI_COMPONENT_ID + 59;
 
 /* Builtin predicate ids (used by query engine) */
-const ecs_entity_t EcsPredEq =                      FLECS_HI_COMPONENT_ID + 58;
-const ecs_entity_t EcsPredMatch =                   FLECS_HI_COMPONENT_ID + 59;
-const ecs_entity_t EcsPredLookup =                  FLECS_HI_COMPONENT_ID + 60;
-const ecs_entity_t EcsScopeOpen =                   FLECS_HI_COMPONENT_ID + 61;
-const ecs_entity_t EcsScopeClose =                  FLECS_HI_COMPONENT_ID + 62;
+const ecs_entity_t EcsPredEq =                      FLECS_HI_COMPONENT_ID + 60;
+const ecs_entity_t EcsPredMatch =                   FLECS_HI_COMPONENT_ID + 61;
+const ecs_entity_t EcsPredLookup =                  FLECS_HI_COMPONENT_ID + 62;
+const ecs_entity_t EcsScopeOpen =                   FLECS_HI_COMPONENT_ID + 63;
+const ecs_entity_t EcsScopeClose =                  FLECS_HI_COMPONENT_ID + 64;
 
 /* Systems */
-const ecs_entity_t EcsMonitor =                     FLECS_HI_COMPONENT_ID + 63;
-const ecs_entity_t EcsEmpty =                       FLECS_HI_COMPONENT_ID + 64;
-const ecs_entity_t ecs_id(EcsPipeline) =            FLECS_HI_COMPONENT_ID + 65;
-const ecs_entity_t EcsOnStart =                     FLECS_HI_COMPONENT_ID + 66;
-const ecs_entity_t EcsPreFrame =                    FLECS_HI_COMPONENT_ID + 67;
-const ecs_entity_t EcsOnLoad =                      FLECS_HI_COMPONENT_ID + 68;
-const ecs_entity_t EcsPostLoad =                    FLECS_HI_COMPONENT_ID + 69;
-const ecs_entity_t EcsPreUpdate =                   FLECS_HI_COMPONENT_ID + 70;
-const ecs_entity_t EcsOnUpdate =                    FLECS_HI_COMPONENT_ID + 71;
-const ecs_entity_t EcsOnValidate =                  FLECS_HI_COMPONENT_ID + 72;
-const ecs_entity_t EcsPostUpdate =                  FLECS_HI_COMPONENT_ID + 73;
-const ecs_entity_t EcsPreStore =                    FLECS_HI_COMPONENT_ID + 74;
-const ecs_entity_t EcsOnStore =                     FLECS_HI_COMPONENT_ID + 75;
-const ecs_entity_t EcsPostFrame =                   FLECS_HI_COMPONENT_ID + 76;
-const ecs_entity_t EcsPhase =                       FLECS_HI_COMPONENT_ID + 77;
+const ecs_entity_t EcsMonitor =                     FLECS_HI_COMPONENT_ID + 65;
+const ecs_entity_t EcsEmpty =                       FLECS_HI_COMPONENT_ID + 66;
+const ecs_entity_t ecs_id(EcsPipeline) =            FLECS_HI_COMPONENT_ID + 67;
+const ecs_entity_t EcsOnStart =                     FLECS_HI_COMPONENT_ID + 68;
+const ecs_entity_t EcsPreFrame =                    FLECS_HI_COMPONENT_ID + 69;
+const ecs_entity_t EcsOnLoad =                      FLECS_HI_COMPONENT_ID + 70;
+const ecs_entity_t EcsPostLoad =                    FLECS_HI_COMPONENT_ID + 71;
+const ecs_entity_t EcsPreUpdate =                   FLECS_HI_COMPONENT_ID + 72;
+const ecs_entity_t EcsOnUpdate =                    FLECS_HI_COMPONENT_ID + 73;
+const ecs_entity_t EcsOnValidate =                  FLECS_HI_COMPONENT_ID + 74;
+const ecs_entity_t EcsPostUpdate =                  FLECS_HI_COMPONENT_ID + 75;
+const ecs_entity_t EcsPreStore =                    FLECS_HI_COMPONENT_ID + 76;
+const ecs_entity_t EcsOnStore =                     FLECS_HI_COMPONENT_ID + 77;
+const ecs_entity_t EcsPostFrame =                   FLECS_HI_COMPONENT_ID + 78;
+const ecs_entity_t EcsPhase =                       FLECS_HI_COMPONENT_ID + 79;
 
 /* Meta primitive components (don't use low ids to save id space) */
 #ifdef FLECS_META
@@ -45339,7 +45223,8 @@ int json_ser_vector(
     void *array = ecs_vec_first(value);
 
     /* Serialize contiguous buffer of vector */
-    return flecs_json_ser_type_elements(world, v->type, array, count, str, false);
+    return flecs_json_ser_type_elements(
+        world, v->type, array, count, str, false);
 }
 
 typedef struct json_serializer_ctx_t {
@@ -49443,19 +49328,12 @@ static
 void flecs_meta_import_core_definitions(
     ecs_world_t *world)
 {
-    ecs_struct(world, {
-        .entity = ecs_id(EcsComponent),
-        .members = {
-            { .name = "size", .type = ecs_id(ecs_i32_t) },
-            { .name = "alignment", .type = ecs_id(ecs_i32_t) }
-        }
-    });
-
-    ecs_struct(world, {
-        .entity = ecs_id(EcsDefaultChildComponent),
-        .members = {
-            { .name = "component", .type = ecs_id(ecs_entity_t) }
-        }
+    ecs_entity_t entity_vec = ecs_vector(world, {
+        .entity = ecs_entity(world, { 
+            .name = "flecs.core.entity_vec_t",
+            .root_sep = ""
+        }),
+        .type = ecs_id(ecs_entity_t)
     });
 
     /* Define const string as an opaque type that maps to string
@@ -49504,6 +49382,35 @@ void flecs_meta_import_core_definitions(
             .as_type = string_vec,
             .serialize = flecs_addon_vec_serialize,
             .count = flecs_addon_vec_count,
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsComponent),
+        .members = {
+            { .name = "size", .type = ecs_id(ecs_i32_t) },
+            { .name = "alignment", .type = ecs_id(ecs_i32_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsDefaultChildComponent),
+        .members = {
+            { .name = "component", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsParent),
+        .members = {
+            { .name = "parent", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsChildren),
+        .members = {
+            { .name = "children", .type = entity_vec }
         }
     });
 

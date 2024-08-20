@@ -148,6 +148,28 @@ static ECS_DTOR(EcsPoly, ptr, {
 })
 
 
+/* -- Children component -- */
+
+static ECS_CTOR(EcsChildren, ptr, {
+    ecs_vec_init_t(NULL, &ptr->children, ecs_entity_t, 0);
+})
+
+static ECS_COPY(EcsChildren, dst, src, {
+    ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    dst->children = ecs_vec_copy_t(NULL, &src->children, ecs_entity_t);
+})
+
+static ECS_MOVE(EcsChildren, dst, src, {
+    ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    *dst = *src;
+    ecs_os_memset_t(src, 0, EcsChildren);
+})
+
+static ECS_DTOR(EcsChildren, ptr, {
+    ecs_vec_fini_t(NULL, &ptr->children, ecs_entity_t);
+})
+
+
 /* -- Builtin triggers -- */
 
 static
@@ -700,8 +722,8 @@ void flecs_bootstrap(
 
     /* Ensure builtin ids are alive */
     ecs_make_alive(world, ecs_id(EcsComponent));
-    ecs_make_alive(world, EcsFinal);
     ecs_make_alive(world, ecs_id(EcsIdentifier));
+    ecs_make_alive(world, EcsFinal);
     ecs_make_alive(world, EcsName);
     ecs_make_alive(world, EcsSymbol);
     ecs_make_alive(world, EcsAlias);
@@ -752,6 +774,15 @@ void flecs_bootstrap(
         .ctor = flecs_default_ctor,
     });
 
+    flecs_type_info_init(world, EcsParent, { 0 });
+
+    flecs_type_info_init(world, EcsChildren, {
+        .ctor = ecs_ctor(EcsChildren),
+        .copy = ecs_copy(EcsChildren),
+        .move = ecs_move(EcsChildren),
+        .dtor = ecs_dtor(EcsChildren)
+    });
+
     /* Create and cache often used id records on world */
     flecs_init_id_records(world);
 
@@ -766,6 +797,8 @@ void flecs_bootstrap(
     flecs_bootstrap_builtin_t(world, table, EcsComponent);
     flecs_bootstrap_builtin_t(world, table, EcsPoly);
     flecs_bootstrap_builtin_t(world, table, EcsDefaultChildComponent);
+    flecs_bootstrap_builtin_t(world, table, EcsParent);
+    flecs_bootstrap_builtin_t(world, table, EcsChildren);
 
     /* Initialize default entity id range */
     world->info.last_component_id = EcsFirstUserComponentId;
@@ -909,11 +942,17 @@ void flecs_bootstrap(
     ecs_add_id(world, EcsOnDeleteTarget, EcsRelationship);
     ecs_add_id(world, EcsOnInstantiate, EcsRelationship);
     ecs_add_id(world, ecs_id(EcsIdentifier), EcsRelationship);
+    ecs_add_id(world, ecs_id(EcsParent), EcsRelationship);
+    ecs_add_id(world, ecs_id(EcsChildren), EcsRelationship);
 
     /* Targets */
     ecs_add_id(world, EcsOverride, EcsTarget);
     ecs_add_id(world, EcsInherit, EcsTarget);
     ecs_add_id(world, EcsDontInherit, EcsTarget);
+
+    /* Traits */
+    ecs_add_id(world, ecs_id(EcsParent), EcsTrait);
+    ecs_add_id(world, ecs_id(EcsChildren), EcsTrait);
 
     /* Sync properties of ChildOf and Identifier with bootstrapped flags */
     ecs_add_pair(world, EcsChildOf, EcsOnDeleteTarget, EcsDelete);

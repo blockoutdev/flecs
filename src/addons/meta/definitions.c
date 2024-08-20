@@ -42,19 +42,12 @@ static
 void flecs_meta_import_core_definitions(
     ecs_world_t *world)
 {
-    ecs_struct(world, {
-        .entity = ecs_id(EcsComponent),
-        .members = {
-            { .name = "size", .type = ecs_id(ecs_i32_t) },
-            { .name = "alignment", .type = ecs_id(ecs_i32_t) }
-        }
-    });
-
-    ecs_struct(world, {
-        .entity = ecs_id(EcsDefaultChildComponent),
-        .members = {
-            { .name = "component", .type = ecs_id(ecs_entity_t) }
-        }
+    ecs_entity_t entity_vec = ecs_vector(world, {
+        .entity = ecs_entity(world, { 
+            .name = "flecs.core.entity_vec_t",
+            .root_sep = ""
+        }),
+        .type = ecs_id(ecs_entity_t)
     });
 
     /* Define const string as an opaque type that maps to string
@@ -103,6 +96,35 @@ void flecs_meta_import_core_definitions(
             .as_type = string_vec,
             .serialize = flecs_addon_vec_serialize,
             .count = flecs_addon_vec_count,
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsComponent),
+        .members = {
+            { .name = "size", .type = ecs_id(ecs_i32_t) },
+            { .name = "alignment", .type = ecs_id(ecs_i32_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsDefaultChildComponent),
+        .members = {
+            { .name = "component", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsParent),
+        .members = {
+            { .name = "parent", .type = ecs_id(ecs_entity_t) }
+        }
+    });
+
+    ecs_struct(world, {
+        .entity = ecs_id(EcsChildren),
+        .members = {
+            { .name = "children", .type = entity_vec }
         }
     });
 

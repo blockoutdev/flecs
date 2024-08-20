@@ -303,211 +303,47 @@ static
 void flecs_instantiate_children(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    ecs_table_t *child_table,
-    const ecs_instantiate_ctx_t *ctx)
+    ecs_entity_t instance,
+    EcsChildren *children,
+    ecs_table_t *child_table)
 {
-    if (!ecs_table_count(child_table)) {
+    int32_t c, child_count = ecs_table_count(child_table);
+    if (!child_count) {
         return;
     }
 
-    ecs_type_t type = child_table->type;
-    ecs_data_t *child_data = &child_table->data;
+    const ecs_entity_t *child_ids = ecs_table_entities(child_table);
+    for (c = 0; c < child_count; c ++) {
+        ecs_entity_t child = child_ids[c];
 
-    ecs_entity_t slot_of = 0;
-    ecs_entity_t *ids = type.array;
-    int32_t type_count = type.count;
+        ecs_table_t *instance_table = ecs_table_add_id(
+            world, NULL, ecs_pair_t(EcsParent, EcsChildOf));
+        instance_table = ecs_table_add_id(
+            world, instance_table, ecs_isa(child));
 
-    /* Instantiate child table for each instance */
+        int16_t column = ecs_table_get_column_index(world, instance_table,
+            ecs_pair_t(EcsParent, EcsChildOf));
+        ecs_assert(column >= 0, ECS_INTERNAL_ERROR, NULL);
 
-    /* Create component array for creating the table */
-    ecs_table_diff_t diff = { .added = {0}};
-    diff.added.array = ecs_os_alloca_n(ecs_entity_t, type_count + 1);
-    void **component_data = ecs_os_alloca_n(void*, type_count + 1);
+        ecs_entity_t instance_child = ecs_new_w_table(
+            world, instance_table);
 
-    /* Copy in component identifiers. Find the base index in the component
-     * array, since we'll need this to replace the base with the instance id */
-    int j, i, childof_base_index = -1;
-    for (i = 0; i < type_count; i ++) {
-        ecs_id_t id = ids[i];
+        EcsParent *p = ECS_ELEM_T(instance_table->data.columns[column].data,
+            EcsParent, instance_table->data.count - 1);
+        p->parent = instance;
 
-        /* If id has DontInherit flag don't inherit it, except for the name
-         * and ChildOf pairs. The name is preserved so applications can lookup
-         * the instantiated children by name. The ChildOf pair is replaced later
-         * with the instance parent. */
-        if ((id != ecs_pair(ecs_id(EcsIdentifier), EcsName)) &&
-            ECS_PAIR_FIRST(id) != EcsChildOf) 
-        {
-            ecs_table_record_t *tr = &child_table->_->records[i];
-            ecs_id_record_t *idr = (ecs_id_record_t*)tr->hdr.cache;
-            if (idr->flags & EcsIdOnInstantiateDontInherit) {
-                continue;
-            }
-        }
+        ecs_entity_t *elem = ecs_vec_append_t(
+            NULL, &children->children, ecs_entity_t);
+        elem[0] = instance_child;
 
-        /* If child is a slot, keep track of which parent to add it to, but
-         * don't add slot relationship to child of instance. If this is a child
-         * of a prefab, keep the SlotOf relationship intact. */
-        if (!(table->flags & EcsTableIsPrefab)) {
-            if (ECS_IS_PAIR(id) && ECS_PAIR_FIRST(id) == EcsSlotOf) {
-                ecs_assert(slot_of == 0, ECS_INTERNAL_ERROR, NULL);
-                slot_of = ecs_pair_second(world, id);
-                continue;
-            }
-        }
-
-        /* Keep track of the element that creates the ChildOf relationship with
-         * the prefab parent. We need to replace this element to make sure the
-         * created children point to the instance and not the prefab */ 
-        if (ECS_HAS_RELATION(id, EcsChildOf) && 
-           (ECS_PAIR_SECOND(id) == (uint32_t)base)) {
-            childof_base_index = diff.added.count;
-        }
-
-        /* If this is a pure override, make sure we have a concrete version of the
-         * component. This relies on the fact that overrides always come after
-         * concrete components in the table type so we can check the components
-         * that have already been added to the child table type. */
-        if (ECS_HAS_ID_FLAG(id, AUTO_OVERRIDE)) {
-            ecs_id_t concreteId = id & ~ECS_AUTO_OVERRIDE;
-            flecs_child_type_insert(&diff.added, component_data, concreteId);
-            continue;
-        }
-
-        int32_t storage_index = ecs_table_type_to_column_index(child_table, i);
-        if (storage_index != -1) {
-            component_data[diff.added.count] = 
-                child_data->columns[storage_index].data;
-        } else {
-            component_data[diff.added.count] = NULL;
-        }
-
-        diff.added.array[diff.added.count] = id;
-        diff.added.count ++;
-        diff.added_flags |= flecs_id_flags_get(world, id);
+        flecs_instantiate(world, child, instance_child);
     }
-
-    /* Table must contain children of base */
-    ecs_assert(childof_base_index != -1, ECS_INTERNAL_ERROR, NULL);
-
-    /* If children are added to a prefab, make sure they are prefabs too */
-    if (table->flags & EcsTableIsPrefab) {
-        if (flecs_child_type_insert(
-            &diff.added, component_data, EcsPrefab) != -1) 
-        {
-            childof_base_index ++;
-        }
-    }
-
-    /* Instantiate the prefab child table for each new instance */
-    const ecs_entity_t *instances = ecs_table_entities(table);
-    int32_t child_count = ecs_table_count(child_table);
-    ecs_entity_t *child_ids = flecs_walloc_n(world, ecs_entity_t, child_count);
-
-    for (i = row; i < count + row; i ++) {
-        ecs_entity_t instance = instances[i];
-        ecs_table_t *i_table = NULL;
- 
-        /* Replace ChildOf element in the component array with instance id */
-        diff.added.array[childof_base_index] = ecs_pair(EcsChildOf, instance);
-
-        /* Find or create table */
-        i_table = flecs_table_find_or_create(world, &diff.added);
-
-        ecs_assert(i_table != NULL, ECS_INTERNAL_ERROR, NULL);
-        ecs_assert(i_table->type.count == diff.added.count,
-            ECS_INTERNAL_ERROR, NULL);
-
-        /* The instance is trying to instantiate from a base that is also
-         * its parent. This would cause the hierarchy to instantiate itself
-         * which would cause infinite recursion. */
-        const ecs_entity_t *children = ecs_table_entities(child_table);
-
-#ifdef FLECS_DEBUG
-        for (j = 0; j < child_count; j ++) {
-            ecs_entity_t child = children[j];        
-            ecs_check(child != instance, ECS_INVALID_PARAMETER, 
-                "cycle detected in IsA relationship");
-        }
-#else
-        /* Bit of boilerplate to ensure that we don't get warnings about the
-         * error label not being used. */
-        ecs_check(true, ECS_INVALID_OPERATION, NULL);
-#endif
-
-        /* Attempt to reserve ids for children that have the same offset from
-         * the instance as from the base prefab. This ensures stable ids for
-         * instance children, even across networked applications. */
-        ecs_instantiate_ctx_t ctx_cur = {base, instance};
-        if (ctx) {
-            ctx_cur = *ctx;
-        }
-
-        for (j = 0; j < child_count; j ++) {
-            if ((uint32_t)children[j] < (uint32_t)ctx_cur.root_prefab) {
-                /* Child id is smaller than root prefab id, can't use offset */
-                child_ids[j] = ecs_new(world);
-                continue;
-            }
-
-            /* Get prefab offset, ignore lifecycle generation count */
-            ecs_entity_t prefab_offset =
-                (uint32_t)children[j] - (uint32_t)ctx_cur.root_prefab;
-            ecs_assert(prefab_offset != 0, ECS_INTERNAL_ERROR, NULL);
-
-            /* First check if any entity with the desired id exists */
-            ecs_entity_t instance_child = (uint32_t)ctx_cur.root_instance + prefab_offset;
-            ecs_entity_t alive_id = flecs_entities_get_alive(world, instance_child);
-            if (alive_id && flecs_entities_is_alive(world, alive_id)) {
-                /* Alive entity with requested id exists, can't use offset id */
-                child_ids[j] = ecs_new(world);
-                continue;
-            }
-
-            /* Id is not in use. Make it alive & match the generation of the instance. */
-            instance_child = ctx_cur.root_instance + prefab_offset;
-            flecs_entities_make_alive(world, instance_child);
-            flecs_entities_ensure(world, instance_child);
-            ecs_assert(ecs_is_alive(world, instance_child), ECS_INTERNAL_ERROR, NULL);
-            child_ids[j] = instance_child;
-        }
-
-        /* Create children */
-        int32_t child_row;
-        const ecs_entity_t *i_children = flecs_bulk_new(world, i_table, child_ids,
-            &diff.added, child_count, component_data, false, &child_row, &diff);
-
-        /* If children are slots, add slot relationships to parent */
-        if (slot_of) {
-            for (j = 0; j < child_count; j ++) {
-                ecs_entity_t child = children[j];
-                ecs_entity_t i_child = i_children[j];
-                flecs_instantiate_slot(world, base, instance, slot_of,
-                    child, i_child);
-            }
-        }
-
-        /* If prefab child table has children itself, recursively instantiate */
-        for (j = 0; j < child_count; j ++) {
-            ecs_entity_t child = children[j];
-            flecs_instantiate(world, child, i_table, child_row + j, 1, &ctx_cur);
-        }
-    }
-
-    flecs_wfree_n(world, ecs_entity_t, child_count, child_ids);
-error:
-    return;    
 }
 
 void flecs_instantiate(
     ecs_world_t *world,
     ecs_entity_t base,
-    ecs_table_t *table,
-    int32_t row,
-    int32_t count,
-    const ecs_instantiate_ctx_t *ctx)
+    ecs_entity_t instance)
 {
     ecs_record_t *record = flecs_entities_get_any(world, base);
     ecs_table_t *base_table = record->table;
@@ -552,10 +388,14 @@ void flecs_instantiate(
     ecs_table_cache_iter_t it;
     if (idr && flecs_table_cache_all_iter((ecs_table_cache_t*)idr, &it)) {
         ecs_os_perf_trace_push("flecs.instantiate");
+        EcsChildren *children = ecs_ensure_pair(world, instance, 
+            EcsChildren, EcsChildOf);
+        ecs_assert(children != NULL, ECS_INTERNAL_ERROR, NULL);
+
         const ecs_table_record_t *tr;
         while ((tr = flecs_table_cache_next(&it, ecs_table_record_t))) {
             flecs_instantiate_children(
-                world, base, table, row, count, tr->hdr.table, ctx);
+                world, base, instance, children, tr->hdr.table);
         }
         ecs_os_perf_trace_pop("flecs.instantiate");
     }
