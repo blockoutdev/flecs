@@ -483,6 +483,10 @@ void flecs_table_init(
                 tr->count = 0;
             }
 
+            if (dst_id == ecs_pair_t(EcsParent, EcsChildOf))  {
+                has_childof = true;
+            }
+
             ecs_assert(tr != NULL, ECS_INTERNAL_ERROR, NULL);
             tr->count ++;
         }
