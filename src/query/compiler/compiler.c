@@ -696,7 +696,7 @@ int flecs_query_insert_toggle(
         }
 
         ecs_term_t *term = &terms[i];
-        if (term->flags_ & EcsTermIsToggle) {
+        if (term->flags_ & EcsTermCanToggle) {
             ecs_query_op_t cur = {0};
             flecs_query_compile_term_ref(NULL, impl, &cur, &term->src, 
                 &cur.src, EcsQuerySrc, EcsVarAny, ctx, false);

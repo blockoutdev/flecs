@@ -886,7 +886,7 @@ int flecs_term_finalize(
         if (id_flags & EcsIdCanToggle) {
             /* If the term isn't matched on a #0 source */
             if (term->src.id != EcsIsEntity) {
-                term->flags_ |= EcsTermIsToggle;
+                term->flags_ |= EcsTermCanToggle;
 
             }
         }
@@ -992,7 +992,7 @@ int flecs_term_finalize(
         cacheable_term = false;
     }
 
-    if (term->flags_ & EcsTermIsToggle) {
+    if (term->flags_ & EcsTermCanToggle) {
         trivial_term = false;
     }
 
@@ -1162,7 +1162,7 @@ int flecs_query_finalize_terms(
 
             /* Toggle terms may be cacheable for fetching the initial component, 
              * but require an additional toggle instruction for evaluation. */
-            if (term->flags_ & EcsTermIsToggle) {
+            if (term->flags_ & EcsTermCanToggle) {
                 cacheable = false;
             }
         } else if (prev_is_or) {
@@ -1648,7 +1648,7 @@ bool flecs_query_finalize_simple(
             }
 
             if (idr->flags & EcsIdCanToggle) {
-                term->flags_ |= EcsTermIsToggle;
+                term->flags_ |= EcsTermCanToggle;
                 trivial = false;
             }
 

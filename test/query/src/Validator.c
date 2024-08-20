@@ -3275,7 +3275,7 @@ void Validator_validate_simple_w_can_toggle(void) {
     test_int(q->terms[0].field_index, 0);
     test_uint(q->terms[0].first.id, ecs_id(Position)|EcsSelf|EcsIsEntity);
     test_uint(q->terms[0].src.id, EcsThis|EcsSelf|EcsIsVariable);
-    test_uint(q->terms[0].flags_, EcsTermKeepAlive|EcsTermIsToggle|EcsTermIsCacheable);
+    test_uint(q->terms[0].flags_, EcsTermKeepAlive|EcsTermCanToggle|EcsTermIsCacheable);
 
     test_assert((q->data_fields & (1 << 0)));
 

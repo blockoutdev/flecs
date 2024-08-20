@@ -1129,7 +1129,7 @@ int flecs_query_compile_term(
     ecs_id_t term_id = term->id;
     ecs_entity_t first_id = term->first.id;
     ecs_entity_t second_id = term->second.id;
-    bool toggle_term = (term->flags_ & EcsTermIsToggle) != 0;
+    bool toggle_term = (term->flags_ & EcsTermCanToggle) != 0;
     bool member_term = (term->flags_ & EcsTermIsMember) != 0;
     if (member_term) {
         flecs_query_compile_begin_member_term(world, term, ctx, first_id);
