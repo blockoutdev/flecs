@@ -1975,6 +1975,20 @@
                 "toggle_0_src"
             ]
         }, {
+            "id": "Flatten",
+            "setup": true,
+            "params": {
+                "cache_kind": ["default", "auto"]
+            },
+            "testcases": [
+                "this_childof_parent",
+                "this_childof_parent_no_children",
+                "this_childof_parent_only_regular",
+                "this_childof_parent_mixed",
+                "this_childof_parent_w_tag",
+                "this_childof_parent_w_component"
+            ]
+        }, {
             "id": "Sparse",
             "setup": true,
             "params": {

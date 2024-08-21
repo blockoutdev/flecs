@@ -81,6 +81,11 @@ void flecs_query_var_set_entity(
     ecs_entity_t entity,
     const ecs_query_run_ctx_t *ctx);
 
+void flecs_query_set_src(
+    const ecs_query_op_t *op,
+    ecs_entity_t entity,
+    const ecs_query_run_ctx_t *ctx);
+
 void flecs_query_set_vars(
     const ecs_query_op_t *op,
     ecs_id_t id,
@@ -322,3 +327,9 @@ bool flecs_query_trav(
     bool redo,
     const ecs_query_run_ctx_t *ctx);
 
+/* Flattened hierarchy evaluation */
+
+bool flecs_query_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx);

@@ -1401,13 +1401,23 @@ typedef struct ecs_query_op_t {
     ecs_flags64_t written;     /* Bitset with variables written by op */
 } ecs_query_op_t;
 
- /* And context */
+/* And context */
 typedef struct {
     ecs_id_record_t *idr;
     ecs_table_cache_iter_t it;
     int16_t column;
     int16_t remaining;
 } ecs_query_and_ctx_t;
+
+/* And flat context */
+typedef struct {
+    ecs_query_and_ctx_t and;
+    ecs_id_t flatten_id;
+    ecs_entity_t *children;
+    int32_t children_count;
+    int32_t cur_child;
+    bool do_flatten;
+} ecs_query_and_flat_ctx_t;
 
 /* Union context */
 typedef struct {
@@ -1558,6 +1568,7 @@ typedef struct {
 typedef struct ecs_query_op_ctx_t {
     union {
         ecs_query_and_ctx_t and;
+        ecs_query_and_flat_ctx_t and_flat;
         ecs_query_xfrom_ctx_t xfrom;
         ecs_query_up_ctx_t up;
         ecs_query_trav_ctx_t trav;
@@ -2107,6 +2118,11 @@ void flecs_query_var_set_entity(
     ecs_entity_t entity,
     const ecs_query_run_ctx_t *ctx);
 
+void flecs_query_set_src(
+    const ecs_query_op_t *op,
+    ecs_entity_t entity,
+    const ecs_query_run_ctx_t *ctx);
+
 void flecs_query_set_vars(
     const ecs_query_op_t *op,
     ecs_id_t id,
@@ -2348,6 +2364,12 @@ bool flecs_query_trav(
     bool redo,
     const ecs_query_run_ctx_t *ctx);
 
+/* Flattened hierarchy evaluation */
+
+bool flecs_query_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx);
 
 /**
  * @file query/util.h
@@ -69383,6 +69405,38 @@ bool flecs_query_and(
     }
 }
 
+static
+bool flecs_query_and_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx)
+{
+    ecs_query_and_flat_ctx_t *op_ctx = flecs_op_ctx(ctx, and_flat);
+
+    if (!redo) {
+        /* First time iterating, start matching regular hierarchies first before
+         * continuing to flattened hierarchy. */
+        op_ctx->do_flatten = false;
+    }
+    
+    if (!op_ctx->do_flatten) {
+        /* flecs_query_and returns all tables with the requested pair. */
+        if (flecs_query_and(op, redo, ctx)) {
+            /* A regular result was found, return it. */
+            return true;
+        }
+
+        /* No more regular results were returned, continue with flattened
+         * results. Set redo to false, so that the flecs_query_flat function
+         * can see that this is the first flattened result. */
+        op_ctx->do_flatten = true;
+        redo = false;
+    }
+
+    /* Return remaining flattened results */
+    return flecs_query_flat(op, redo, ctx);
+}
+
 bool flecs_query_select_id(
     const ecs_query_op_t *op,
     bool redo,
@@ -69536,16 +69590,6 @@ bool flecs_query_and_any(
     ctx->it->trs[field] = (ecs_table_record_t*)op_ctx->it.cur;
 
     return result;
-}
-
-static
-bool flecs_query_and_flat(
-    const ecs_query_op_t *op,
-    bool redo,
-    const ecs_query_run_ctx_t *ctx)
-{
-    // TODO: implement code to handle flattened tables
-    return flecs_query_and(op, redo, ctx);
 }
 
 static
@@ -70691,6 +70735,71 @@ bool flecs_query_run_until(
         flecs_query_trace_indent --;
 #endif
 
+    return true;
+}
+
+/**
+ * @file query/engine/eval_flattened.c
+ * @brief Flattened hierarchy iteration.
+ */
+
+
+bool flecs_query_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx)
+{
+    ecs_query_and_flat_ctx_t *op_ctx = flecs_op_ctx(ctx, and_flat);
+
+    if (!redo) {
+        /* Initialize context for first result */
+
+        /* Get component id to match. This will be a pair that looks like 
+         * (ChildOf, parent) or (ChildOf, *). */
+        op_ctx->flatten_id = flecs_query_op_get_id(op, ctx);
+
+        /* Flattened iteration only applies to pairs that have a relationship
+         * with the CanFlatten trait, so id must be a pair. */
+        ecs_assert(ECS_IS_PAIR(op_ctx->flatten_id), ECS_INTERNAL_ERROR, NULL);
+
+        /* Get first and second elements of pair */
+        ecs_entity_t first = ECS_PAIR_FIRST(op_ctx->flatten_id);
+        ecs_entity_t second = ECS_PAIR_SECOND(op_ctx->flatten_id);
+
+        if (second != EcsWildcard) {
+            /* We're matching a (ChildOf, parent) pair. */
+            second = flecs_entities_get_alive(ctx->world, second);
+
+            /* Get the (Children, R) component from the parent. If the matched
+             * relationship is ChildOf, this will fetch (Children, ChildOf). */
+            const EcsChildren *children = ecs_get_pair(
+                ctx->world, second, EcsChildren, first);
+            if (!children) {
+                return false;
+            }
+
+            /* Prepare the query context with the children array, number of 
+             * children and index of the currently iterated child. */
+            op_ctx->children = ecs_vec_first_t(
+                &children->children, ecs_entity_t);
+            op_ctx->children_count = ecs_vec_count(&children->children);
+            op_ctx->cur_child = -1;
+        }
+    }
+
+    /* Move to the next child in the children array. */
+    ecs_assert(op_ctx->cur_child < op_ctx->children_count, 
+        ECS_INTERNAL_ERROR, NULL);
+    int32_t cur = ++ op_ctx->cur_child;
+    if (op_ctx->cur_child == op_ctx->children_count) {
+        return false;
+    }
+
+    /* Assign the child to the source of the operation. This will initialize the
+     * source variable (typically $this) with the entity, which allows 
+     * subsequent operations that use the same variable to use the entity. */
+    flecs_query_set_src(op, op_ctx->children[cur], ctx);
+    
     return true;
 }
 
@@ -73128,6 +73237,23 @@ void flecs_query_var_set_entity(
         ECS_INTERNAL_ERROR, NULL);
     ecs_var_t *var = &ctx->vars[var_id];
     var->range.table = NULL;
+    var->range.count = 1;
+    var->entity = entity;
+}
+
+void flecs_query_set_src(
+    const ecs_query_op_t *op,
+    ecs_entity_t entity,
+    const ecs_query_run_ctx_t *ctx)
+{
+    (void)op;
+    ecs_var_id_t var_id = op->src.var;
+    ecs_assert(var_id < (ecs_var_id_t)ctx->query->var_count, 
+        ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(flecs_query_is_written(var_id, op->written), 
+        ECS_INTERNAL_ERROR, NULL);
+    ecs_var_t *var = &ctx->vars[var_id];
+    var->range = flecs_range_from_entity(entity, ctx);
     var->entity = entity;
 }
 

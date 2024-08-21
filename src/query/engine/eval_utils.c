@@ -228,6 +228,23 @@ void flecs_query_var_set_entity(
         ECS_INTERNAL_ERROR, NULL);
     ecs_var_t *var = &ctx->vars[var_id];
     var->range.table = NULL;
+    var->range.count = 1;
+    var->entity = entity;
+}
+
+void flecs_query_set_src(
+    const ecs_query_op_t *op,
+    ecs_entity_t entity,
+    const ecs_query_run_ctx_t *ctx)
+{
+    (void)op;
+    ecs_var_id_t var_id = op->src.var;
+    ecs_assert(var_id < (ecs_var_id_t)ctx->query->var_count, 
+        ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(flecs_query_is_written(var_id, op->written), 
+        ECS_INTERNAL_ERROR, NULL);
+    ecs_var_t *var = &ctx->vars[var_id];
+    var->range = flecs_range_from_entity(entity, ctx);
     var->entity = entity;
 }
 

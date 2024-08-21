@@ -149,6 +149,38 @@ bool flecs_query_and(
     }
 }
 
+static
+bool flecs_query_and_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx)
+{
+    ecs_query_and_flat_ctx_t *op_ctx = flecs_op_ctx(ctx, and_flat);
+
+    if (!redo) {
+        /* First time iterating, start matching regular hierarchies first before
+         * continuing to flattened hierarchy. */
+        op_ctx->do_flatten = false;
+    }
+    
+    if (!op_ctx->do_flatten) {
+        /* flecs_query_and returns all tables with the requested pair. */
+        if (flecs_query_and(op, redo, ctx)) {
+            /* A regular result was found, return it. */
+            return true;
+        }
+
+        /* No more regular results were returned, continue with flattened
+         * results. Set redo to false, so that the flecs_query_flat function
+         * can see that this is the first flattened result. */
+        op_ctx->do_flatten = true;
+        redo = false;
+    }
+
+    /* Return remaining flattened results */
+    return flecs_query_flat(op, redo, ctx);
+}
+
 bool flecs_query_select_id(
     const ecs_query_op_t *op,
     bool redo,
@@ -302,16 +334,6 @@ bool flecs_query_and_any(
     ctx->it->trs[field] = (ecs_table_record_t*)op_ctx->it.cur;
 
     return result;
-}
-
-static
-bool flecs_query_and_flat(
-    const ecs_query_op_t *op,
-    bool redo,
-    const ecs_query_run_ctx_t *ctx)
-{
-    // TODO: implement code to handle flattened tables
-    return flecs_query_and(op, redo, ctx);
 }
 
 static

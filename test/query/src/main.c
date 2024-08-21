@@ -1901,6 +1901,15 @@ void Toggle_this_table_move_2_from_3(void);
 void Toggle_toggle_0_src_only_term(void);
 void Toggle_toggle_0_src(void);
 
+// Testsuite 'Flatten'
+void Flatten_setup(void);
+void Flatten_this_childof_parent(void);
+void Flatten_this_childof_parent_no_children(void);
+void Flatten_this_childof_parent_only_regular(void);
+void Flatten_this_childof_parent_mixed(void);
+void Flatten_this_childof_parent_w_tag(void);
+void Flatten_this_childof_parent_w_component(void);
+
 // Testsuite 'Sparse'
 void Sparse_setup(void);
 void Sparse_1_fixed_sparse(void);
@@ -9558,6 +9567,33 @@ bake_test_case Toggle_testcases[] = {
     }
 };
 
+bake_test_case Flatten_testcases[] = {
+    {
+        "this_childof_parent",
+        Flatten_this_childof_parent
+    },
+    {
+        "this_childof_parent_no_children",
+        Flatten_this_childof_parent_no_children
+    },
+    {
+        "this_childof_parent_only_regular",
+        Flatten_this_childof_parent_only_regular
+    },
+    {
+        "this_childof_parent_mixed",
+        Flatten_this_childof_parent_mixed
+    },
+    {
+        "this_childof_parent_w_tag",
+        Flatten_this_childof_parent_w_tag
+    },
+    {
+        "this_childof_parent_w_component",
+        Flatten_this_childof_parent_w_component
+    }
+};
+
 bake_test_case Sparse_testcases[] = {
     {
         "1_fixed_sparse",
@@ -10449,6 +10485,10 @@ const char* Toggle_cache_kind_param[] = {"default", "auto"};
 bake_test_param Toggle_params[] = {
     {"cache_kind", (char**)Toggle_cache_kind_param, 2}
 };
+const char* Flatten_cache_kind_param[] = {"default", "auto"};
+bake_test_param Flatten_params[] = {
+    {"cache_kind", (char**)Flatten_cache_kind_param, 2}
+};
 const char* Sparse_cache_kind_param[] = {"default", "auto"};
 bake_test_param Sparse_params[] = {
     {"cache_kind", (char**)Sparse_cache_kind_param, 2}
@@ -10613,6 +10653,15 @@ static bake_test_suite suites[] = {
         Toggle_params
     },
     {
+        "Flatten",
+        Flatten_setup,
+        NULL,
+        6,
+        Flatten_testcases,
+        1,
+        Flatten_params
+    },
+    {
         "Sparse",
         Sparse_setup,
         NULL,
@@ -10654,5 +10703,5 @@ static bake_test_suite suites[] = {
 };
 
 int main(int argc, char *argv[]) {
-    return bake_test_run("query", argc, argv, suites, 24);
+    return bake_test_run("query", argc, argv, suites, 25);
 }

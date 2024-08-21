@@ -127,13 +127,23 @@ typedef struct ecs_query_op_t {
     ecs_flags64_t written;     /* Bitset with variables written by op */
 } ecs_query_op_t;
 
- /* And context */
+/* And context */
 typedef struct {
     ecs_id_record_t *idr;
     ecs_table_cache_iter_t it;
     int16_t column;
     int16_t remaining;
 } ecs_query_and_ctx_t;
+
+/* And flat context */
+typedef struct {
+    ecs_query_and_ctx_t and;
+    ecs_id_t flatten_id;
+    ecs_entity_t *children;
+    int32_t children_count;
+    int32_t cur_child;
+    bool do_flatten;
+} ecs_query_and_flat_ctx_t;
 
 /* Union context */
 typedef struct {
@@ -284,6 +294,7 @@ typedef struct {
 typedef struct ecs_query_op_ctx_t {
     union {
         ecs_query_and_ctx_t and;
+        ecs_query_and_flat_ctx_t and_flat;
         ecs_query_xfrom_ctx_t xfrom;
         ecs_query_up_ctx_t up;
         ecs_query_trav_ctx_t trav;
