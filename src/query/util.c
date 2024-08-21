@@ -176,6 +176,7 @@ const char* flecs_query_op_str(
     switch(kind) {
     case EcsQueryAnd:            return "and       ";
     case EcsQueryAndAny:         return "andany    ";
+    case EcsQueryAndFlat:        return "andflat   ";
     case EcsQueryTriv:           return "triv      ";
     case EcsQueryCache:          return "cache     ";
     case EcsQueryIsCache:        return "xcache    ";

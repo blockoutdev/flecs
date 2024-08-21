@@ -1319,6 +1319,7 @@ typedef enum {
     EcsQueryAnd,            /* And operator: find or match id against variable source */
     EcsQueryAndAny,         /* And operator with support for matching Any src/id */
     EcsQueryOnlyAny,        /* Dedicated instruction for _ queries where the src is unknown */
+    EcsQueryAndFlat,        /* And for pairs that can be flattened */
     EcsQueryTriv,           /* Trivial search (batches multiple terms) */
     EcsQueryCache,          /* Cached search */
     EcsQueryIsCache,        /* Cached search for queries that are entirely cached */
@@ -32809,6 +32810,7 @@ const char* flecs_query_op_str(
     switch(kind) {
     case EcsQueryAnd:            return "and       ";
     case EcsQueryAndAny:         return "andany    ";
+    case EcsQueryAndFlat:        return "andflat   ";
     case EcsQueryTriv:           return "triv      ";
     case EcsQueryCache:          return "cache     ";
     case EcsQueryIsCache:        return "xcache    ";
@@ -66341,6 +66343,8 @@ void flecs_query_set_op_kind(
                 op->kind = EcsQueryUnionEqSelfUp;
             }
         }
+    } else if (term->flags_ & EcsTermCanFlatten) {
+        op->kind = EcsQueryAndFlat;
     } else {
         if ((term->src.id & trav_flags) == EcsUp) {
             op->kind = EcsQueryUp;
@@ -69535,6 +69539,16 @@ bool flecs_query_and_any(
 }
 
 static
+bool flecs_query_and_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx)
+{
+    // TODO: implement code to handle flattened tables
+    return flecs_query_and(op, redo, ctx);
+}
+
+static
 bool flecs_query_only_any(
     const ecs_query_op_t *op,
     bool redo,
@@ -70567,6 +70581,7 @@ bool flecs_query_dispatch(
     switch(op->kind) {
     case EcsQueryAnd: return flecs_query_and(op, redo, ctx);
     case EcsQueryAndAny: return flecs_query_and_any(op, redo, ctx);
+    case EcsQueryAndFlat: return flecs_query_and_flat(op, redo, ctx);
     case EcsQueryTriv: return flecs_query_triv(op, redo, ctx);
     case EcsQueryCache: return flecs_query_cache(op, redo, ctx);
     case EcsQueryIsCache: return flecs_query_is_cache(op, redo, ctx);

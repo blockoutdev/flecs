@@ -305,6 +305,16 @@ bool flecs_query_and_any(
 }
 
 static
+bool flecs_query_and_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx)
+{
+    // TODO: implement code to handle flattened tables
+    return flecs_query_and(op, redo, ctx);
+}
+
+static
 bool flecs_query_only_any(
     const ecs_query_op_t *op,
     bool redo,
@@ -1337,6 +1347,7 @@ bool flecs_query_dispatch(
     switch(op->kind) {
     case EcsQueryAnd: return flecs_query_and(op, redo, ctx);
     case EcsQueryAndAny: return flecs_query_and_any(op, redo, ctx);
+    case EcsQueryAndFlat: return flecs_query_and_flat(op, redo, ctx);
     case EcsQueryTriv: return flecs_query_triv(op, redo, ctx);
     case EcsQueryCache: return flecs_query_cache(op, redo, ctx);
     case EcsQueryIsCache: return flecs_query_is_cache(op, redo, ctx);
