@@ -622,13 +622,14 @@ ecs_table_t* flecs_bootstrap_component_table(
      * can no longer be done after they are in use. */
     ecs_id_record_t *idr = flecs_id_record_ensure(world, EcsChildOf);
     idr->flags |= EcsIdOnDeleteObjectDelete | EcsIdOnInstantiateDontInherit |
-        EcsIdTraversable | EcsIdCanFlatten | EcsIdTag;
+        EcsIdTraversable | EcsIdTag;
 
     /* Initialize id records cached on world */
     world->idr_childof_wildcard = flecs_id_record_ensure(world, 
         ecs_pair(EcsChildOf, EcsWildcard));
     world->idr_childof_wildcard->flags |= EcsIdOnDeleteObjectDelete | 
-        EcsIdOnInstantiateDontInherit | EcsIdTraversable | EcsIdTag | EcsIdExclusive;
+        EcsIdOnInstantiateDontInherit | EcsIdTraversable | 
+            EcsIdCanFlatten | EcsIdTag | EcsIdExclusive;
     idr = flecs_id_record_ensure(world, ecs_pair_t(EcsIdentifier, EcsWildcard));
     idr->flags |= EcsIdOnInstantiateDontInherit;
     world->idr_identifier_name = 

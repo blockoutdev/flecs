@@ -891,6 +891,15 @@ int flecs_term_finalize(
             }
         }
 
+        /* Check if term has flattenable component */
+        if (id_flags & EcsIdCanFlatten) {
+            /* If the term isn't matched on a #0 source */
+            if (term->src.id != EcsIsEntity) {
+                term->flags_ |= EcsTermCanFlatten;
+
+            }
+        }
+
         /* Check if this is a member query */
 #ifdef FLECS_META
         if (ecs_id(EcsMember) != 0) {
@@ -987,7 +996,7 @@ int flecs_term_finalize(
         cacheable_term = false;
     }
 
-    if (term->flags_ & EcsTermIsMember) {
+    if (term->flags_ & (EcsTermIsMember|EcsTermCanFlatten)) {
         trivial_term = false;
         cacheable_term = false;
     }
@@ -1650,6 +1659,12 @@ bool flecs_query_finalize_simple(
             if (idr->flags & EcsIdCanToggle) {
                 term->flags_ |= EcsTermCanToggle;
                 trivial = false;
+            }
+
+            if (idr->flags & EcsIdCanFlatten) {
+                term->flags_ |= EcsTermCanFlatten;
+                trivial = false;
+                cacheable = false;
             }
 
             if (ECS_IS_PAIR(id)) {

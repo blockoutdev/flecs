@@ -3871,13 +3871,14 @@ ecs_table_t* flecs_bootstrap_component_table(
      * can no longer be done after they are in use. */
     ecs_id_record_t *idr = flecs_id_record_ensure(world, EcsChildOf);
     idr->flags |= EcsIdOnDeleteObjectDelete | EcsIdOnInstantiateDontInherit |
-        EcsIdTraversable | EcsIdCanFlatten | EcsIdTag;
+        EcsIdTraversable | EcsIdTag;
 
     /* Initialize id records cached on world */
     world->idr_childof_wildcard = flecs_id_record_ensure(world, 
         ecs_pair(EcsChildOf, EcsWildcard));
     world->idr_childof_wildcard->flags |= EcsIdOnDeleteObjectDelete | 
-        EcsIdOnInstantiateDontInherit | EcsIdTraversable | EcsIdTag | EcsIdExclusive;
+        EcsIdOnInstantiateDontInherit | EcsIdTraversable | 
+            EcsIdCanFlatten | EcsIdTag | EcsIdExclusive;
     idr = flecs_id_record_ensure(world, ecs_pair_t(EcsIdentifier, EcsWildcard));
     idr->flags |= EcsIdOnInstantiateDontInherit;
     world->idr_identifier_name = 
@@ -34271,6 +34272,15 @@ int flecs_term_finalize(
             }
         }
 
+        /* Check if term has flattenable component */
+        if (id_flags & EcsIdCanFlatten) {
+            /* If the term isn't matched on a #0 source */
+            if (term->src.id != EcsIsEntity) {
+                term->flags_ |= EcsTermCanFlatten;
+
+            }
+        }
+
         /* Check if this is a member query */
 #ifdef FLECS_META
         if (ecs_id(EcsMember) != 0) {
@@ -34367,7 +34377,7 @@ int flecs_term_finalize(
         cacheable_term = false;
     }
 
-    if (term->flags_ & EcsTermIsMember) {
+    if (term->flags_ & (EcsTermIsMember|EcsTermCanFlatten)) {
         trivial_term = false;
         cacheable_term = false;
     }
@@ -35030,6 +35040,12 @@ bool flecs_query_finalize_simple(
             if (idr->flags & EcsIdCanToggle) {
                 term->flags_ |= EcsTermCanToggle;
                 trivial = false;
+            }
+
+            if (idr->flags & EcsIdCanFlatten) {
+                term->flags_ |= EcsTermCanFlatten;
+                trivial = false;
+                cacheable = false;
             }
 
             if (ECS_IS_PAIR(id)) {
