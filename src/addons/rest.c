@@ -80,6 +80,9 @@ void flecs_rest_capture_log(
             ecs_log_enable_colors(true);
             rest_prev_log(level, file, line, msg);
             ecs_log_enable_colors(false);
+        } else if (level == -4) {/* fatal */
+            fprintf(stderr, "%s: %d: %s\n", file, line, msg);
+            flecs_dump_backtrace(stderr);
         }
     }
 #endif

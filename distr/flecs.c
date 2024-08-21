@@ -25471,6 +25471,9 @@ void flecs_rest_capture_log(
             ecs_log_enable_colors(true);
             rest_prev_log(level, file, line, msg);
             ecs_log_enable_colors(false);
+        } else if (level == -4) {/* fatal */
+            fprintf(stderr, "%s: %d: %s\n", file, line, msg);
+            flecs_dump_backtrace(stderr);
         }
     }
 #endif
@@ -70776,6 +70779,12 @@ bool flecs_query_flat(
         if (second != EcsWildcard) {
             /* We're matching a (ChildOf, parent) pair. */
             second = flecs_entities_get_alive(ctx->world, second);
+            if (!second) {
+                /* This is a query for root entities, and root entities can't
+                 * be flattened. (R, 0) pairs are only valid if R is ChildOf. */
+                ecs_assert(first == EcsChildOf, ECS_INTERNAL_ERROR, NULL);
+                return false;
+            }
 
             /* Get the (Children, R) component from the parent. If the matched
              * relationship is ChildOf, this will fetch (Children, ChildOf). */

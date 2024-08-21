@@ -1986,7 +1986,10 @@
                 "this_childof_parent_only_regular",
                 "this_childof_parent_mixed",
                 "this_childof_parent_w_tag",
-                "this_childof_parent_w_component"
+                "this_childof_parent_w_component",
+                "this_childof_0",
+                "this_not_childof_wildcard",
+                "this_not_childof_any"
             ]
         }, {
             "id": "Sparse",
