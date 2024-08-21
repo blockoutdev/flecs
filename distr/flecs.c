@@ -4012,6 +4012,13 @@ void flecs_bootstrap(
     ecs_make_alive(world, EcsIsA);
     ecs_make_alive(world, EcsWildcard);
     ecs_make_alive(world, EcsAny);
+    ecs_make_alive(world, EcsPairIsTag);
+    ecs_make_alive(world, EcsCanToggle);
+    ecs_make_alive(world, EcsTrait);
+    ecs_make_alive(world, EcsRelationship);
+    ecs_make_alive(world, EcsTarget);
+    ecs_make_alive(world, EcsSparse);
+    ecs_make_alive(world, EcsUnion);
 
     /* Register type information for builtin components */
     flecs_type_info_init(world, EcsComponent, { 
