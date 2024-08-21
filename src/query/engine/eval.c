@@ -609,11 +609,15 @@ bool flecs_query_ids(
     {
         cur = flecs_id_record_get(ctx->world, id);
         if (!cur || !cur->cache.tables.count) {
-            return false;
+            /* No tables found with the specified id. Check if there are 
+             * entities in flattened hierarchies that have it. */
+            if (!flecs_query_ids_flat(op, ctx, id)) {
+                return false;
+            }
         }
     }
 
-    flecs_query_set_vars(op, cur->id, ctx);
+    flecs_query_set_vars(op, id, ctx);
 
     if (op->field_index != -1) {
         ecs_iter_t *it = ctx->it;

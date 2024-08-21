@@ -407,3 +407,65 @@ void Flatten_this_not_childof_any(void) {
 
     ecs_fini(world);
 }
+
+void Flatten_this_childof_parent_any_src(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ecs_entity_t p = ecs_new_w_id(world, EcsPrefab);
+    ecs_entity_t c_1 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_2 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_3 = ecs_new_w_pair(world, EcsChildOf, p);
+
+    ecs_entity_t i = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children = ecs_get_pair(
+        world, i, EcsChildren, EcsChildOf);
+    test_assert(children != NULL);
+
+    ecs_entity_t *child_ids = ecs_vec_first(&children->children);
+    test_assert(child_ids != NULL);
+    test_int(ecs_vec_count(&children->children), 3);
+    test_assert(ecs_has_pair(world, child_ids[0], EcsIsA, c_1));
+    test_assert(ecs_has_pair(world, child_ids[1], EcsIsA, c_2));
+    test_assert(ecs_has_pair(world, child_ids[2], EcsIsA, c_3));
+
+    /* Query that only cares about whether there's *any* entity that has the
+     * requested ChildOf pair. Only returns a single yes/no result. */
+    ecs_query_t *q = ecs_query(world, {
+        .terms = {{ ecs_childof(i), .src.id = EcsAny }},
+        .cache_kind = cache_kind
+    });
+
+    test_assert(q != NULL);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(true, ecs_query_next(&it));
+    test_int(0, it.count);
+    test_uint(ecs_pair(EcsChildOf, i), ecs_field_id(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 0));
+
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
+}
+
+void Flatten_this_childof_parent_any_src_no_match(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ecs_entity_t p = ecs_new(world);
+
+    ecs_query_t *q = ecs_query(world, {
+        .terms = {{ ecs_childof(p), .src.id = EcsAny }},
+        .cache_kind = cache_kind
+    });
+
+    test_assert(q != NULL);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
+}

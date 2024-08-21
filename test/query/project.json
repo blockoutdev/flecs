@@ -1989,7 +1989,9 @@
                 "this_childof_parent_w_component",
                 "this_childof_0",
                 "this_not_childof_wildcard",
-                "this_not_childof_any"
+                "this_not_childof_any",
+                "this_childof_parent_any_src",
+                "this_childof_parent_any_src_no_match"
             ]
         }, {
             "id": "Sparse",

@@ -333,3 +333,8 @@ bool flecs_query_flat(
     const ecs_query_op_t *op,
     bool redo,
     const ecs_query_run_ctx_t *ctx);
+
+bool flecs_query_ids_flat(
+    const ecs_query_op_t *op,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_id_t id);

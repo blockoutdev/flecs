@@ -69,3 +69,38 @@ bool flecs_query_flat(
     
     return true;
 }
+
+bool flecs_query_ids_flat(
+    const ecs_query_op_t *op,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_id_t id)
+{
+    /* If id is not a pair, this check can't be for a flattened relationship. */
+    if (ECS_IS_PAIR(id)) {
+        ecs_id_t wc = ecs_pair(ECS_PAIR_FIRST(id), EcsWildcard);
+        ecs_id_record_t *idr = flecs_id_record_get(ctx->world, wc);
+        if (!idr) {
+            /* Id record should exist for flattened */
+            return false;
+        }
+
+        if (idr->flags & EcsIdCanFlatten) {
+            ecs_entity_t first = ECS_PAIR_FIRST(id);
+            ecs_entity_t second = ECS_PAIR_SECOND(id);
+
+            /* The pair has a relationship that can be flattened. Check
+             * if second element of the pair flattened children. */
+            ecs_entity_t parent = flecs_entities_get_alive(ctx->world, second);
+            ecs_assert(parent != 0, ECS_INTERNAL_ERROR, NULL);
+
+            /* Check for (Children, R) component which stores flattened trees 
+             * for relationship R. */
+            if (ecs_owns_pair(ctx->world, parent, ecs_id(EcsChildren), first)) {
+                /* Parent has flattened children */
+                return true;
+            }
+        }
+    }
+
+    return false;
+}

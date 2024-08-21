@@ -1912,6 +1912,8 @@ void Flatten_this_childof_parent_w_component(void);
 void Flatten_this_childof_0(void);
 void Flatten_this_not_childof_wildcard(void);
 void Flatten_this_not_childof_any(void);
+void Flatten_this_childof_parent_any_src(void);
+void Flatten_this_childof_parent_any_src_no_match(void);
 
 // Testsuite 'Sparse'
 void Sparse_setup(void);
@@ -9606,6 +9608,14 @@ bake_test_case Flatten_testcases[] = {
     {
         "this_not_childof_any",
         Flatten_this_not_childof_any
+    },
+    {
+        "this_childof_parent_any_src",
+        Flatten_this_childof_parent_any_src
+    },
+    {
+        "this_childof_parent_any_src_no_match",
+        Flatten_this_childof_parent_any_src_no_match
     }
 };
 
@@ -10671,7 +10681,7 @@ static bake_test_suite suites[] = {
         "Flatten",
         Flatten_setup,
         NULL,
-        9,
+        11,
         Flatten_testcases,
         1,
         Flatten_params
