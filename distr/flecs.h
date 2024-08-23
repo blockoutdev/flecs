@@ -3959,7 +3959,7 @@ int32_t flecs_poly_refcount(
 #define ECS_OFFSET_T(o, T) ECS_OFFSET(o, ECS_SIZEOF(T))
 
 #define ECS_ELEM(ptr, size, index) ECS_OFFSET(ptr, (size) * (index))
-#define ECS_ELEM_T(o, T, index) ECS_ELEM(o, ECS_SIZEOF(T), index)
+#define ECS_ELEM_T(o, T, index) ECS_CAST(T*, ECS_ELEM(o, ECS_SIZEOF(T), index))
 
 /** Enable/disable bitsets */
 #define ECS_BIT_SET(flags, bit) (flags) |= (bit)

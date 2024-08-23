@@ -109,6 +109,7 @@ bool ecs_query_next(
 
     ecs_query_iter_t *qit = &it->priv_.iter.query;
     ecs_query_impl_t *impl = ECS_CONST_CAST(ecs_query_impl_t*, qit->query);
+    ecs_check(impl != NULL, ECS_INVALID_PARAMETER, "invalid iterator");
     ecs_query_run_ctx_t ctx;
     flecs_query_iter_run_ctx_init(it, &ctx);
     const ecs_query_op_t *ops = qit->ops;
@@ -188,6 +189,7 @@ bool ecs_query_next(
     }
 
     ecs_iter_fini(it);
+error:
     return false;
 
 trivial_search_yield:

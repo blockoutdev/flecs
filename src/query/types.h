@@ -139,7 +139,7 @@ typedef struct {
 typedef struct {
     ecs_query_and_ctx_t and;
     ecs_id_t flatten_id;
-    ecs_entity_t *children;
+    const ecs_entity_t *children;
     int32_t children_count;
     int32_t cur_child;
     bool do_flatten;

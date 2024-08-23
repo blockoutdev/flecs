@@ -1991,7 +1991,12 @@
                 "this_not_childof_wildcard",
                 "this_not_childof_any",
                 "this_childof_parent_any_src",
-                "this_childof_parent_any_src_no_match"
+                "this_childof_parent_any_src_no_match",
+                "this_childof_wildcard",
+                "this_childof_wildcard_no_children",
+                "this_childof_wildcard_only_regular",
+                "this_childof_wildcard_mixed",
+                "this_childof_wildcard_w_component"
             ]
         }, {
             "id": "Sparse",
