@@ -1990,6 +1990,7 @@
                 "this_childof_0",
                 "this_not_childof_wildcard",
                 "this_not_childof_any",
+                "this_childof_0_src",
                 "this_childof_parent_any_src",
                 "this_childof_parent_any_src_no_match",
                 "this_childof_wildcard",
@@ -1998,7 +1999,10 @@
                 "this_childof_wildcard_mixed",
                 "this_childof_wildcard_w_component",
                 "this_childof_var",
-                "this_childof_var_written"
+                "this_childof_var_written",
+                "var_childof_parent",
+                "var_childof_parent_w_tag",
+                "var_childof_parent_w_component"
             ]
         }, {
             "id": "Sparse",
