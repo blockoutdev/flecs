@@ -70819,6 +70819,9 @@ bool flecs_query_flat_fixed(
      * subsequent operations that use the same variable to use the entity. */
     flecs_query_set_src(op, op_ctx->children[cur], ctx);
     
+    /* Set matched id to (R, parent) */
+    ctx->it->ids[op->field_index] = op_ctx->flatten_id;
+
     return true;
 }
 
@@ -70889,6 +70892,11 @@ repeat:
 
     /* Set matched id to (R, parent) */
     ctx->it->ids[op->field_index] = ecs_pair(first, parent);
+
+    /* If the pair id matched by the term contains a variable, populate it. This
+     * ensures that for a (R, $var) pair, the $var variable is initialized with
+     * the parent. */
+    flecs_query_set_vars(op, ecs_pair(first, parent), ctx);
     
     return true;
 }

@@ -859,3 +859,191 @@ void Flatten_this_childof_wildcard_w_component(void) {
 
     ecs_fini(world);
 }
+
+void Flatten_this_childof_var(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ECS_TAG(world, Foo);
+
+    ecs_entity_t p = ecs_new_w_id(world, EcsPrefab);
+    ecs_entity_t c_1 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_2 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_3 = ecs_new_w_pair(world, EcsChildOf, p);
+
+    ecs_add(world, c_1, Foo);
+    ecs_add(world, c_2, Foo);
+    ecs_add(world, c_3, Foo);
+
+    ecs_entity_t i1 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children1 = ecs_get_pair(
+        world, i1, EcsChildren, EcsChildOf);
+    test_assert(children1 != NULL);
+    ecs_entity_t *child_ids1 = ecs_vec_first(&children1->children);
+    test_assert(child_ids1 != NULL);
+    test_int(ecs_vec_count(&children1->children), 3);
+
+    ecs_entity_t i2 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children2 = ecs_get_pair(
+        world, i2, EcsChildren, EcsChildOf);
+    test_assert(children2 != NULL);
+    ecs_entity_t *child_ids2 = ecs_vec_first(&children2->children);
+    test_assert(child_ids2 != NULL);
+    test_int(ecs_vec_count(&children2->children), 3);
+
+    ecs_query_t *q = ecs_query(world, {
+        .expr = "(ChildOf, $x), Foo",
+        .cache_kind = cache_kind
+    });
+
+    test_assert(q != NULL);
+    
+    int x_var = ecs_query_find_var(q, "x");
+    test_assert(x_var != -1);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[0]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[0]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 0));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids2[0]);
+    test_assert(it.table == ecs_get_table(world, child_ids2[0]));
+    test_uint(ecs_pair(EcsChildOf, i2), ecs_field_id(&it, 0));
+    test_uint(i2, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[1]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[1]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 0));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids2[1]);
+    test_assert(it.table == ecs_get_table(world, child_ids2[1]));
+    test_uint(ecs_pair(EcsChildOf, i2), ecs_field_id(&it, 0));
+    test_uint(i2, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[2]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[2]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 0));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids2[2]);
+    test_assert(it.table == ecs_get_table(world, child_ids2[2]));
+    test_uint(ecs_pair(EcsChildOf, i2), ecs_field_id(&it, 0));
+    test_uint(i2, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 0));
+    test_bool(true, ecs_field_is_set(&it, 1));
+
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
+}
+
+void Flatten_this_childof_var_written(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ECS_TAG(world, Foo);
+
+    ecs_entity_t p = ecs_new_w_id(world, EcsPrefab);
+    ecs_entity_t c_1 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_2 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_3 = ecs_new_w_pair(world, EcsChildOf, p);
+
+    ecs_add(world, c_1, Foo);
+    ecs_add(world, c_2, Foo);
+    ecs_add(world, c_3, Foo);
+
+    ecs_entity_t i1 = ecs_new_w_pair(world, EcsIsA, p);
+    ecs_set_name(world, i1, "i1");
+
+    const EcsChildren *children1 = ecs_get_pair(
+        world, i1, EcsChildren, EcsChildOf);
+    test_assert(children1 != NULL);
+    ecs_entity_t *child_ids1 = ecs_vec_first(&children1->children);
+    test_assert(child_ids1 != NULL);
+    test_int(ecs_vec_count(&children1->children), 3);
+
+    ecs_entity_t i2 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children2 = ecs_get_pair(
+        world, i2, EcsChildren, EcsChildOf);
+    test_assert(children2 != NULL);
+    ecs_entity_t *child_ids2 = ecs_vec_first(&children2->children);
+    test_assert(child_ids2 != NULL);
+    test_int(ecs_vec_count(&children2->children), 3);
+
+    ecs_query_t *q = ecs_query(world, {
+        .expr = "$x == i1, (ChildOf, $x), Foo",
+        .cache_kind = cache_kind
+    });
+
+    test_assert(q != NULL);
+    
+    int x_var = ecs_query_find_var(q, "x");
+    test_assert(x_var != -1);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[0]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[0]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 1));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 2));
+    test_bool(true, ecs_field_is_set(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 2));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[1]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[1]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 1));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 2));
+    test_bool(true, ecs_field_is_set(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 2));
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids1[2]);
+    test_assert(it.table == ecs_get_table(world, child_ids1[2]));
+    test_uint(ecs_pair(EcsChildOf, i1), ecs_field_id(&it, 1));
+    test_uint(i1, ecs_iter_get_var(&it, x_var));
+    test_uint(Foo, ecs_field_id(&it, 2));
+    test_bool(true, ecs_field_is_set(&it, 1));
+    test_bool(true, ecs_field_is_set(&it, 2));
+
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
+}
