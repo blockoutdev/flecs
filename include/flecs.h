@@ -1473,7 +1473,8 @@ typedef struct EcsParent {
 
 /** Component that stores children for flattened hierarchy */
 typedef struct EcsChildren {
-    ecs_vec_t children; /**< vec<ecs_entity_t> */
+    ecs_map_t table_map; /**< map<table_id, child_row> */
+    ecs_vec_t children;  /**< vec<ecs_entity_t> */
 } EcsChildren;
 
 /** @} */

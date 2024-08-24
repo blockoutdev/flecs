@@ -19,17 +19,16 @@ bool flecs_query_flat_fixed(
         ecs_entity_t second = ECS_PAIR_SECOND(op_ctx->flatten_id);
         ecs_assert(second != EcsWildcard, ECS_INTERNAL_ERROR, NULL);
 
-        /* We're matching a (ChildOf, parent) pair. */
         second = flecs_entities_get_alive(ctx->world, second);
         if (!second) {
             /* This is a query for root entities, and root entities can't
-                * be flattened. (R, 0) pairs are only valid if R is ChildOf. */
+             * be flattened. (R, 0) pairs are only valid if R is ChildOf. */
             ecs_assert(first == EcsChildOf, ECS_INTERNAL_ERROR, NULL);
             return false;
         }
 
         /* Get the (Children, R) component from the parent. If the matched
-            * relationship is ChildOf, this will fetch (Children, ChildOf). */
+         * relationship is ChildOf, this will fetch (Children, ChildOf). */
         const EcsChildren *children = ecs_get_pair(
             ctx->world, second, EcsChildren, first);
         if (!children) {
@@ -37,22 +36,22 @@ bool flecs_query_flat_fixed(
         }
 
         /* Prepare the query context with the children array, number of 
-            * children and index of the currently iterated child. */
+         * children and index of the currently iterated child. */
         op_ctx->children = ecs_vec_first_t(
             &children->children, ecs_entity_t);
-        op_ctx->children_count = ecs_vec_count(&children->children);
+        op_ctx->range.count = ecs_vec_count(&children->children);
 
         /* If entity has Children component, it must have children. */
-        ecs_assert(op_ctx->children_count != 0, ECS_INTERNAL_ERROR, NULL);
+        ecs_assert(op_ctx->range.count != 0, ECS_INTERNAL_ERROR, NULL);
 
         op_ctx->cur_child = -1;
     }
 
     /* Move to the next child in the children array. */
-    ecs_assert(op_ctx->cur_child < op_ctx->children_count, 
+    ecs_assert(op_ctx->cur_child < op_ctx->range.count, 
         ECS_INTERNAL_ERROR, NULL);
     int32_t cur = ++ op_ctx->cur_child;
-    if (op_ctx->cur_child == op_ctx->children_count) {
+    if (op_ctx->cur_child == op_ctx->range.count) {
         return false;
     }
 
@@ -60,7 +59,7 @@ bool flecs_query_flat_fixed(
      * source variable (typically $this) with the entity, which allows 
      * subsequent operations that use the same variable to use the entity. */
     flecs_query_set_src(op, op_ctx->children[cur], ctx);
-    
+
     /* Set matched id to (R, parent) */
     ctx->it->ids[op->field_index] = op_ctx->flatten_id;
 
@@ -108,22 +107,22 @@ repeat:
 
         table = tr->hdr.table;
         op_ctx->cur_child = 0;
-        op_ctx->children_count = ecs_table_count(table);
+        op_ctx->range.count = ecs_table_count(table);
         op_ctx->children = &ecs_table_entities(table)[0];
-        ecs_assert(op_ctx->children_count != 0, ECS_INTERNAL_ERROR, NULL);
+        ecs_assert(op_ctx->range.count != 0, ECS_INTERNAL_ERROR, NULL);
     } else {
         /* Iterate next child in table */
         tr = (ecs_table_record_t*)op_ctx->and.it.cur;
         ecs_assert(tr != NULL, ECS_INTERNAL_ERROR, NULL);
         table = tr->hdr.table;
-        if (++ op_ctx->cur_child == op_ctx->children_count) {
+        if (++ op_ctx->cur_child == op_ctx->range.count) {
             redo = false;
             goto repeat;
         }
     }
 
     int32_t cur = op_ctx->cur_child;
-    ecs_assert(cur < op_ctx->children_count, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(cur < op_ctx->range.count, ECS_INTERNAL_ERROR, NULL);
 
     /* Set entity as source, see above. */
     flecs_query_set_src(op, op_ctx->children[cur], ctx);
@@ -143,6 +142,90 @@ repeat:
     return true;
 }
 
+bool flecs_query_select_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_query_and_flat_ctx_t *op_ctx)
+{
+    /* Switch between querying for a single parent or all parents */
+    if (ECS_PAIR_SECOND(op_ctx->flatten_id) != EcsWildcard) {
+        return flecs_query_flat_fixed(op, redo, ctx, op_ctx);
+    } else {
+        return flecs_query_flat_wildcard(op, redo, ctx, op_ctx);
+    }
+}
+
+bool flecs_query_with_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_query_and_flat_ctx_t *op_ctx)
+{
+    if (redo) {
+        /* Restore range */
+        if (op->flags & (EcsQueryIsVar << EcsQuerySrc)) {
+            flecs_query_var_narrow_range(op->src.var, 
+                op_ctx->range.table, 
+                op_ctx->range.offset, 
+                op_ctx->range.count, 
+                ctx);
+        }
+
+        return false;
+    }
+
+    ecs_entity_t first = ECS_PAIR_FIRST(op_ctx->flatten_id);
+    ecs_entity_t second = ecs_pair_second(ctx->world, op_ctx->flatten_id);
+
+    /* Get currently evaluated table range */
+    ecs_table_range_t range = flecs_query_get_range(
+        op, &op->src, EcsQuerySrc, ctx);
+    if (!range.count) {
+        range.count = ecs_table_count(range.table);
+    }
+    op_ctx->range = range;
+
+    /* Get Children component to check if current table has a child */
+    const EcsChildren *c = ecs_get_pair(ctx->world, second, EcsChildren, first);
+    if (!c) {
+        /* Entity doesn't have flattened children */
+        return false;
+    }
+
+    /* Get table row for child. Each flattened table can at most contain one
+     * child per parent. */
+    ecs_map_val_t *row_ptr = ecs_map_get(&c->table_map, range.table->id);
+    if (!row_ptr) {
+        /* Table doesn't contain child for parent */
+        return false;
+    }
+
+    int32_t row = flecs_uto(int32_t, *row_ptr);
+    ecs_assert(row < ecs_table_count(range.table), ECS_INTERNAL_ERROR, NULL);
+
+    /* Sanity check to make sure entity is actually child of entity */
+#ifdef FLECS_DEBUG
+    ecs_entity_t child = ecs_table_entities(range.table)[row];
+    const EcsParent *p = ecs_get_pair(ctx->world, child, EcsParent, first);
+    ecs_assert(p != NULL, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(p->parent == ecs_get_alive(ctx->world, second), 
+        ECS_INTERNAL_ERROR, NULL);
+#endif
+
+    /* If we're evaluating a partial table range, make sure that the entity 
+     * falls within the range. */
+    if ((row < range.offset) || (row > (range.offset + range.count))) {
+        return false;
+    }
+
+    /* Narrow the returned range to just the child. */
+    flecs_query_var_narrow_range(op->src.var, 
+        op_ctx->range.table, row, 1, ctx);
+
+    return true;
+}
+
 bool flecs_query_flat(
     const ecs_query_op_t *op,
     bool redo,
@@ -150,19 +233,21 @@ bool flecs_query_flat(
 {
     ecs_query_and_flat_ctx_t *op_ctx = flecs_op_ctx(ctx, and_flat);
 
-    /* Get component id to match. This will be a pair that looks like 
-     * (ChildOf, parent) or (ChildOf, *). */
-    op_ctx->flatten_id = flecs_query_op_get_id(op, ctx);
+    if (!redo) {
+        /* Get component id to match. This will be a pair that looks like 
+        * (ChildOf, parent) or (ChildOf, *). */
+        op_ctx->flatten_id = flecs_query_op_get_id(op, ctx);
 
-    /* Flattened iteration only applies to pairs that have a relationship
-     * with the CanFlatten trait, so id must be a pair. */
-    ecs_assert(ECS_IS_PAIR(op_ctx->flatten_id), ECS_INTERNAL_ERROR, NULL);
+        /* Flattened iteration only applies to pairs that have a relationship
+        * with the CanFlatten trait, so id must be a pair. */
+        ecs_assert(ECS_IS_PAIR(op_ctx->flatten_id), ECS_INTERNAL_ERROR, NULL);
+    }
 
-    /* Switch between querying for a single parent or all parents */
-    if (ECS_PAIR_SECOND(op_ctx->flatten_id) != EcsWildcard) {
-        return flecs_query_flat_fixed(op, redo, ctx, op_ctx);
+    uint64_t written = ctx->written[ctx->op_index];
+    if (written & (1ull << op->src.var)) {
+        return flecs_query_with_flat(op, redo, ctx, op_ctx);
     } else {
-        return flecs_query_flat_wildcard(op, redo, ctx, op_ctx);
+        return flecs_query_select_flat(op, redo, ctx, op_ctx);
     }
 }
 

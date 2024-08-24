@@ -139,8 +139,9 @@ typedef struct {
 typedef struct {
     ecs_query_and_ctx_t and;
     ecs_id_t flatten_id;
+    const EcsParent *parents;
     const ecs_entity_t *children;
-    int32_t children_count;
+    ecs_table_range_t range;
     int32_t cur_child;
     bool do_flatten;
 } ecs_query_and_flat_ctx_t;

@@ -260,6 +260,8 @@ void flecs_table_init_flags(
                     table->flags |= EcsTableHasName;
                 } else if (r == ecs_id(EcsPoly)) {
                     table->flags |= EcsTableHasBuiltins;
+                } else if (r == ecs_id(EcsParent)) {
+                    table->flags |= EcsTableHasFlattened;
                 }
             } else {
                 if (ECS_HAS_ID_FLAG(id, TOGGLE)) {
@@ -1255,6 +1257,62 @@ void flecs_table_move_bitset_columns(
     }
 }
 
+static
+void flecs_table_move_flattened(
+    ecs_world_t *world,
+    ecs_table_t *dst, 
+    int32_t dst_offset,
+    ecs_table_t *src, 
+    int32_t src_offset,
+    int32_t count)
+{
+    if (!(src->flags & EcsTableHasFlattened)) {
+        return;
+    }
+
+    /* Reparenting is currently not supported for flattened children. */
+    ecs_assert(dst->flags & EcsTableHasFlattened, ECS_INVALID_OPERATION,
+        "cannot remove (Parent, R) pair without deleting the entity");
+
+    /* Find all (Parent, R) pairs in the table. We only need to look them up on
+     * the source table, since they should be the same for the destination. */
+    ecs_id_record_t *idr = flecs_id_record_get(world, 
+        ecs_pair_t(EcsParent, EcsWildcard));
+    ecs_assert(idr != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    const ecs_table_record_t *tr = flecs_id_record_get_table(idr, src);
+    ecs_assert(tr != NULL, ECS_INTERNAL_ERROR, NULL);
+
+    /* Loop (Parent, R) pairs */
+    int32_t i = tr->index, end = i + tr->count, column = tr->column, row;
+    for (; i < end; i ++, column ++) {
+        ecs_id_t id = src->type.array[i];
+        ecs_assert(ECS_IS_PAIR(id), ECS_INTERNAL_ERROR, NULL);
+        ecs_assert(ECS_PAIR_FIRST(id) == ecs_id(EcsParent), 
+            ECS_INTERNAL_ERROR, NULL);
+        ecs_entity_t r = ECS_PAIR_SECOND(id);
+
+        /* Loop through moved entities */
+        EcsParent *parents = src->data.columns[column].data;
+        for (row = 0; row < count; row ++) {
+            ecs_entity_t parent = parents[row + src_offset].parent;
+            if (!parent) {
+                /* Not yet initialized */
+                continue;
+            }
+
+            /* Update map in parent's (Children, R) component that stores at 
+             * which row in a table a parent's child can be found. This is used
+             * to optimize queries for children of a specific parent. */
+            EcsChildren *children = ecs_get_mut_pair(
+                world, parent, EcsChildren, r);
+            ecs_assert(children != NULL, ECS_INTERNAL_ERROR, NULL);
+            ecs_map_remove(&children->table_map, src->id);
+            ecs_map_ensure(&children->table_map, dst->id)[0] = row + dst_offset;
+        }
+    }
+}
+
 /* Grow table column. When a column needs to be reallocated this function takes
  * care of correctly invoking ctor/move/dtor hooks. */
 static
@@ -1719,6 +1777,9 @@ void flecs_table_move(
 
     flecs_table_move_bitset_columns(
         dst_table, dst_index, src_table, src_index, 1, false);
+
+    flecs_table_move_flattened(
+        world, dst_table, dst_index, src_table, src_index, 1);
 
     /* If the source and destination entities are the same, move component 
      * between tables. If the entities are not the same (like when cloning) use

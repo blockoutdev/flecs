@@ -85,6 +85,7 @@ extern "C" {
 #define EcsIdHasOnTableDelete          (1u << 22)
 #define EcsIdIsSparse                  (1u << 23)
 #define EcsIdIsUnion                   (1u << 24)
+
 #define EcsIdEventMask\
     (EcsIdHasOnAdd|EcsIdHasOnRemove|EcsIdHasOnSet|\
         EcsIdHasOnTableFill|EcsIdHasOnTableEmpty|EcsIdHasOnTableCreate|\
@@ -226,6 +227,7 @@ extern "C" {
 #define EcsTableHasOnTableDelete       (1u << 22u)
 #define EcsTableHasSparse              (1u << 23u)
 #define EcsTableHasUnion               (1u << 24u)
+#define EcsTableHasFlattened           (1u << 25u)
 
 #define EcsTableHasTraversable         (1u << 26u)
 #define EcsTableMarkedForDelete        (1u << 30u)
@@ -235,9 +237,9 @@ extern "C" {
 #define EcsTableIsComplex        (EcsTableHasLifecycle | EcsTableHasToggle | EcsTableHasSparse)
 #define EcsTableHasAddActions    (EcsTableHasIsA | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove)
-#define EcsTableEdgeFlags        (EcsTableHasOnAdd | EcsTableHasOnRemove | EcsTableHasSparse | EcsTableHasUnion)
-#define EcsTableAddEdgeFlags     (EcsTableHasOnAdd | EcsTableHasSparse | EcsTableHasUnion)
-#define EcsTableRemoveEdgeFlags  (EcsTableHasOnRemove | EcsTableHasSparse | EcsTableHasUnion)
+#define EcsTableAddEdgeFlags     (EcsTableHasOnAdd | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasFlattened)
+#define EcsTableRemoveEdgeFlags  (EcsTableHasOnRemove | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasFlattened)
+#define EcsTableEdgeFlags        (EcsTableAddEdgeFlags | EcsTableRemoveEdgeFlags)
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Aperiodic action flags (used by ecs_run_aperiodic)

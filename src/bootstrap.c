@@ -152,21 +152,26 @@ static ECS_DTOR(EcsPoly, ptr, {
 
 static ECS_CTOR(EcsChildren, ptr, {
     ecs_vec_init_t(NULL, &ptr->children, ecs_entity_t, 0);
+    ecs_map_init(&ptr->table_map, NULL);
 })
 
 static ECS_COPY(EcsChildren, dst, src, {
     ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    ecs_map_fini(&dst->table_map);
     dst->children = ecs_vec_copy_t(NULL, &src->children, ecs_entity_t);
+    ecs_map_copy(&dst->table_map, &src->table_map);
 })
 
 static ECS_MOVE(EcsChildren, dst, src, {
     ecs_vec_fini_t(NULL, &dst->children, ecs_entity_t);
+    ecs_map_fini(&dst->table_map);
     *dst = *src;
     ecs_os_memset_t(src, 0, EcsChildren);
 })
 
 static ECS_DTOR(EcsChildren, ptr, {
     ecs_vec_fini_t(NULL, &ptr->children, ecs_entity_t);
+    ecs_map_fini(&ptr->table_map);
 })
 
 
@@ -775,7 +780,9 @@ void flecs_bootstrap(
         .ctor = flecs_default_ctor,
     });
 
-    flecs_type_info_init(world, EcsParent, { 0 });
+    flecs_type_info_init(world, EcsParent, { 
+        .ctor = flecs_default_ctor
+    });
 
     flecs_type_info_init(world, EcsChildren, {
         .ctor = ecs_ctor(EcsChildren),

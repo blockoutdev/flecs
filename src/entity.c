@@ -336,6 +336,9 @@ void flecs_instantiate_children(
             NULL, &children->children, ecs_entity_t);
         elem[0] = instance_child;
 
+        ecs_map_ensure(&children->table_map, instance_table->id)[0] =
+            ecs_table_count(instance_table) - 1;
+
         flecs_instantiate(world, child, instance_child);
     }
 }
@@ -542,7 +545,8 @@ void flecs_notify_on_add(
 
     if (added->count) {
         ecs_flags32_t diff_flags = 
-            diff->added_flags|(table->flags & EcsTableHasTraversable);
+            diff->added_flags|(table->flags & 
+                (EcsTableHasTraversable|EcsTableHasFlattened));
         if (!diff_flags) {
             return;
         }
@@ -584,7 +588,8 @@ void flecs_notify_on_remove(
 
     if (removed->count) {
         ecs_flags32_t diff_flags = 
-            diff->removed_flags|(table->flags & EcsTableHasTraversable);
+            diff->removed_flags|(table->flags & 
+                (EcsTableHasTraversable|EcsTableHasFlattened));
         if (!diff_flags) {
             return;
         }

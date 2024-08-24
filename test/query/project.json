@@ -2002,7 +2002,17 @@
                 "this_childof_var_written",
                 "var_childof_parent",
                 "var_childof_parent_w_tag",
-                "var_childof_parent_w_component"
+                "var_childof_parent_w_component",
+                "this_written_childof_parent",
+                "this_written_childof_parent_after_add",
+                "this_written_childof_parent_no_children",
+                "this_written_childof_parent_no_matching_children",
+                "this_written_childof_parent_2_matching_children",
+                "this_written_childof_parent_only_regular",
+                "this_written_childof_parent_mixed",
+                "this_written_childof_parent_w_component",
+                "var_written_childof_parent",
+                "var_written_childof_parent_w_component"
             ]
         }, {
             "id": "Sparse",
