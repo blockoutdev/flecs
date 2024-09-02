@@ -1987,6 +1987,7 @@
                 "this_childof_parent_mixed",
                 "this_childof_parent_w_tag",
                 "this_childof_parent_w_component",
+                "this_childof_parent_w_component_inherited",
                 "this_childof_0",
                 "this_not_childof_wildcard",
                 "this_not_childof_any",
@@ -1998,11 +1999,13 @@
                 "this_childof_wildcard_only_regular",
                 "this_childof_wildcard_mixed",
                 "this_childof_wildcard_w_component",
+                "this_childof_wildcard_w_component_inherited",
                 "this_childof_var",
                 "this_childof_var_written",
                 "var_childof_parent",
                 "var_childof_parent_w_tag",
                 "var_childof_parent_w_component",
+                "var_childof_parent_w_component_inherited",
                 "this_written_childof_parent",
                 "this_written_childof_parent_after_add",
                 "this_written_childof_parent_no_children",
@@ -2011,8 +2014,10 @@
                 "this_written_childof_parent_only_regular",
                 "this_written_childof_parent_mixed",
                 "this_written_childof_parent_w_component",
+                "this_written_childof_parent_w_component_inherited",
                 "var_written_childof_parent",
-                "var_written_childof_parent_w_component"
+                "var_written_childof_parent_w_component",
+                "var_written_childof_parent_w_component_inherit"
             ]
         }, {
             "id": "Sparse",
