@@ -1984,6 +1984,7 @@
                 "fixed_src_childof_parent",
                 "fixed_src_childof_wildcard",
                 "fixed_src_childof_any",
+                "fixed_src_childof_var",
                 "this_childof_parent",
                 "this_childof_parent_no_children",
                 "this_childof_parent_only_regular",
@@ -2021,6 +2022,7 @@
                 "this_written_childof_wildcard",
                 "this_written_childof_wildcard_mixed",
                 "this_written_childof_any",
+                "this_written_childof_var",
                 "var_written_childof_parent",
                 "var_written_childof_parent_w_component",
                 "var_written_childof_parent_w_component_inherit"
