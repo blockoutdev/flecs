@@ -1903,6 +1903,9 @@ void Toggle_toggle_0_src(void);
 
 // Testsuite 'Flatten'
 void Flatten_setup(void);
+void Flatten_fixed_src_childof_parent(void);
+void Flatten_fixed_src_childof_wildcard(void);
+void Flatten_fixed_src_childof_any(void);
 void Flatten_this_childof_parent(void);
 void Flatten_this_childof_parent_no_children(void);
 void Flatten_this_childof_parent_only_regular(void);
@@ -1937,6 +1940,9 @@ void Flatten_this_written_childof_parent_only_regular(void);
 void Flatten_this_written_childof_parent_mixed(void);
 void Flatten_this_written_childof_parent_w_component(void);
 void Flatten_this_written_childof_parent_w_component_inherited(void);
+void Flatten_this_written_childof_wildcard(void);
+void Flatten_this_written_childof_wildcard_mixed(void);
+void Flatten_this_written_childof_any(void);
 void Flatten_var_written_childof_parent(void);
 void Flatten_var_written_childof_parent_w_component(void);
 void Flatten_var_written_childof_parent_w_component_inherit(void);
@@ -9600,6 +9606,18 @@ bake_test_case Toggle_testcases[] = {
 
 bake_test_case Flatten_testcases[] = {
     {
+        "fixed_src_childof_parent",
+        Flatten_fixed_src_childof_parent
+    },
+    {
+        "fixed_src_childof_wildcard",
+        Flatten_fixed_src_childof_wildcard
+    },
+    {
+        "fixed_src_childof_any",
+        Flatten_fixed_src_childof_any
+    },
+    {
         "this_childof_parent",
         Flatten_this_childof_parent
     },
@@ -9734,6 +9752,18 @@ bake_test_case Flatten_testcases[] = {
     {
         "this_written_childof_parent_w_component_inherited",
         Flatten_this_written_childof_parent_w_component_inherited
+    },
+    {
+        "this_written_childof_wildcard",
+        Flatten_this_written_childof_wildcard
+    },
+    {
+        "this_written_childof_wildcard_mixed",
+        Flatten_this_written_childof_wildcard_mixed
+    },
+    {
+        "this_written_childof_any",
+        Flatten_this_written_childof_any
     },
     {
         "var_written_childof_parent",
@@ -10811,7 +10841,7 @@ static bake_test_suite suites[] = {
         "Flatten",
         Flatten_setup,
         NULL,
-        37,
+        43,
         Flatten_testcases,
         1,
         Flatten_params

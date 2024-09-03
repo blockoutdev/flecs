@@ -165,9 +165,17 @@ bool flecs_query_and_flat(
     
     if (!op_ctx->do_flatten) {
         /* flecs_query_and returns all tables with the requested pair. */
-        if (flecs_query_and(op, redo, ctx)) {
-            /* A regular result was found, return it. */
-            return true;
+        uint64_t written = ctx->written[ctx->op_index];
+        if (flecs_ref_is_written(op, &op->src, EcsQuerySrc, written)) {
+            if (flecs_query_with(op, redo, ctx)) {
+                /* A regular result was found, return it. */
+                return true;
+            }
+        } else {
+            if (flecs_query_select(op, redo, ctx)) {
+                /* A regular result was found, return it. */
+                return true;
+            }
         }
 
         /* No more regular results were returned, continue with flattened

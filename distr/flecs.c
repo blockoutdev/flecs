@@ -69510,9 +69510,17 @@ bool flecs_query_and_flat(
     
     if (!op_ctx->do_flatten) {
         /* flecs_query_and returns all tables with the requested pair. */
-        if (flecs_query_and(op, redo, ctx)) {
-            /* A regular result was found, return it. */
-            return true;
+        uint64_t written = ctx->written[ctx->op_index];
+        if (flecs_ref_is_written(op, &op->src, EcsQuerySrc, written)) {
+            if (flecs_query_with(op, redo, ctx)) {
+                /* A regular result was found, return it. */
+                return true;
+            }
+        } else {
+            if (flecs_query_select(op, redo, ctx)) {
+                /* A regular result was found, return it. */
+                return true;
+            }
         }
 
         /* No more regular results were returned, continue with flattened
@@ -70988,7 +70996,7 @@ bool flecs_query_select_flat(
     }
 }
 
-bool flecs_query_with_flat(
+bool flecs_query_with_flat_fixed(
     const ecs_query_op_t *op,
     bool redo,
     const ecs_query_run_ctx_t *ctx,
@@ -71016,6 +71024,7 @@ bool flecs_query_with_flat(
     if (!range.count) {
         range.count = ecs_table_count(range.table);
     }
+
     op_ctx->range = range;
 
     /* Get Children component to check if current table has a child */
@@ -71052,10 +71061,129 @@ bool flecs_query_with_flat(
     }
 
     /* Narrow the returned range to just the child. */
-    flecs_query_var_narrow_range(op->src.var, 
-        op_ctx->range.table, row, 1, ctx);
+    if (op->flags & (EcsQueryIsVar << EcsQuerySrc)) {
+        flecs_query_var_narrow_range(op->src.var, 
+            op_ctx->range.table, row, 1, ctx);
+    }
 
     return true;
+}
+
+static
+bool flecs_query_with_flat_wildcard(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_query_and_flat_ctx_t *op_ctx)
+{
+    ecs_entity_t first = ECS_PAIR_FIRST(op_ctx->flatten_id);
+
+    if (!redo) {
+        /* Get currently evaluated table range */
+        ecs_table_range_t range = flecs_query_get_range(
+            op, &op->src, EcsQuerySrc, ctx);
+        if (!range.count) {
+            range.count = ecs_table_count(range.table);
+        }
+
+        op_ctx->range = range;
+        op_ctx->cur_child = -1;
+
+        ecs_entity_t second = ECS_PAIR_SECOND(op_ctx->flatten_id);
+        ecs_assert(second == EcsWildcard, ECS_INTERNAL_ERROR, NULL);
+        (void)second;
+
+        int32_t index = ecs_table_get_column_index(
+            ctx->world, range.table, ecs_pair_t(EcsParent, first));
+        if (index == -1) {
+            return false;
+        }
+
+        op_ctx->parents = ecs_table_get_column(range.table, index, 0);
+        ecs_assert(op_ctx->parents != NULL, ECS_INTERNAL_ERROR, NULL);
+    }
+
+    int32_t row = ++ op_ctx->cur_child;
+    row += op_ctx->range.offset;
+
+    ecs_assert(row <= op_ctx->range.count, ECS_INTERNAL_ERROR, NULL);
+    if (row == op_ctx->range.count) {
+        /* Restore range */
+        if (op->flags & (EcsQueryIsVar << EcsQuerySrc)) {
+            flecs_query_var_narrow_range(op->src.var, 
+                op_ctx->range.table, 
+                op_ctx->range.offset, 
+                op_ctx->range.count, 
+                ctx);
+        }
+        return false;
+    }
+
+    /* Narrow source to only current entity */
+    if (op->flags & (EcsQueryIsVar << EcsQuerySrc)) {
+        flecs_query_var_narrow_range(
+            op->src.var, op_ctx->range.table, row, 1, ctx);
+    }
+
+    /* Set matched id to (R, parent) */
+    ecs_entity_t parent = op_ctx->parents[row].parent;
+    ctx->it->ids[op->field_index] = ecs_pair(first, parent);
+
+    /* If the pair id matched by the term contains a variable, populate it. This
+     * ensures that for a (R, $var) pair, the $var variable is initialized with
+     * the parent. */
+    flecs_query_set_vars(op, ecs_pair(first, parent), ctx);
+
+    return true;
+}
+
+static
+bool flecs_query_with_flat_any(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_query_and_flat_ctx_t *op_ctx)
+{
+    ecs_entity_t first = ECS_PAIR_FIRST(op_ctx->flatten_id);
+
+    if (!redo) {
+        ecs_table_t *table = flecs_query_get_table(
+            op, &op->src, EcsQuerySrc, ctx);
+        ecs_assert(table != NULL, ECS_INTERNAL_ERROR, NULL);
+        if (!(table->flags & EcsTableHasFlattened)) {
+            return false;
+        }
+
+        int32_t index = ecs_table_get_column_index(
+            ctx->world, table, ecs_pair_t(EcsParent, first));
+        if (index == -1) {
+            return false;
+        }
+    } else {
+        return false;
+    }
+
+    ctx->it->ids[op->field_index] = ecs_pair(first, EcsWildcard);
+
+    return true;
+}
+
+bool flecs_query_with_flat(
+    const ecs_query_op_t *op,
+    bool redo,
+    const ecs_query_run_ctx_t *ctx,
+    ecs_query_and_flat_ctx_t *op_ctx)
+{
+    /* Switch between querying for a single parent or all parents */
+    if (ECS_PAIR_SECOND(op_ctx->flatten_id) != EcsWildcard) {
+        return flecs_query_with_flat_fixed(op, redo, ctx, op_ctx);
+    } else {
+        if (op->match_flags & EcsTermMatchAny) {
+            return flecs_query_with_flat_any(op, redo, ctx, op_ctx);
+        } else {
+            return flecs_query_with_flat_wildcard(op, redo, ctx, op_ctx);
+        }
+    }
 }
 
 bool flecs_query_flat(
@@ -71076,7 +71204,7 @@ bool flecs_query_flat(
     }
 
     uint64_t written = ctx->written[ctx->op_index];
-    if (written & (1ull << op->src.var)) {
+    if (flecs_ref_is_written(op, &op->src, EcsQuerySrc, written)) {
         return flecs_query_with_flat(op, redo, ctx, op_ctx);
     } else {
         return flecs_query_select_flat(op, redo, ctx, op_ctx);
