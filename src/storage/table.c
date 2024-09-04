@@ -261,7 +261,11 @@ void flecs_table_init_flags(
                 } else if (r == ecs_id(EcsPoly)) {
                     table->flags |= EcsTableHasBuiltins;
                 } else if (r == ecs_id(EcsParent)) {
-                    table->flags |= EcsTableHasFlattened;
+                    /* Table has (Parent, R) component */
+                    table->flags |= EcsTableHasParent;
+                } else if (r == ecs_id(EcsChildren)) {
+                    /* Table has (Children, R) component */
+                    table->flags |= EcsTableHasChildren;
                 }
             } else {
                 if (ECS_HAS_ID_FLAG(id, TOGGLE)) {
@@ -1266,12 +1270,12 @@ void flecs_table_move_flattened(
     int32_t src_offset,
     int32_t count)
 {
-    if (!(src->flags & EcsTableHasFlattened)) {
+    if (!(src->flags & EcsTableHasParent)) {
         return;
     }
 
     /* Reparenting is currently not supported for flattened children. */
-    ecs_assert(dst->flags & EcsTableHasFlattened, ECS_INVALID_OPERATION,
+    ecs_assert(dst->flags & EcsTableHasParent, ECS_INVALID_OPERATION,
         "cannot remove (Parent, R) pair without deleting the entity");
 
     /* Find all (Parent, R) pairs in the table. We only need to look them up on

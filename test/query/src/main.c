@@ -1951,6 +1951,17 @@ void Flatten_var_written_childof_parent_w_component_inherit(void);
 void Flatten_this_up_childof(void);
 void Flatten_this_up_childof_w_component(void);
 void Flatten_this_up_childof_w_component_inherited(void);
+void Flatten_this_up_childof_2_lvl(void);
+void Flatten_this_up_childof_2_lvl_w_component(void);
+void Flatten_this_up_childof_2_lvl_w_component_inherited(void);
+void Flatten_this_up_childof_2_lvl_w_owned(void);
+void Flatten_this_self_up_childof(void);
+void Flatten_this_self_up_childof_w_component(void);
+void Flatten_this_self_up_childof_w_component_inherited(void);
+void Flatten_this_self_up_childof_2_lvl(void);
+void Flatten_this_self_up_childof_2_lvl_w_component(void);
+void Flatten_this_self_up_childof_2_lvl_w_component_inherited(void);
+void Flatten_this_self_up_childof_2_lvl_w_owned(void);
 
 // Testsuite 'Sparse'
 void Sparse_setup(void);
@@ -9801,6 +9812,50 @@ bake_test_case Flatten_testcases[] = {
     {
         "this_up_childof_w_component_inherited",
         Flatten_this_up_childof_w_component_inherited
+    },
+    {
+        "this_up_childof_2_lvl",
+        Flatten_this_up_childof_2_lvl
+    },
+    {
+        "this_up_childof_2_lvl_w_component",
+        Flatten_this_up_childof_2_lvl_w_component
+    },
+    {
+        "this_up_childof_2_lvl_w_component_inherited",
+        Flatten_this_up_childof_2_lvl_w_component_inherited
+    },
+    {
+        "this_up_childof_2_lvl_w_owned",
+        Flatten_this_up_childof_2_lvl_w_owned
+    },
+    {
+        "this_self_up_childof",
+        Flatten_this_self_up_childof
+    },
+    {
+        "this_self_up_childof_w_component",
+        Flatten_this_self_up_childof_w_component
+    },
+    {
+        "this_self_up_childof_w_component_inherited",
+        Flatten_this_self_up_childof_w_component_inherited
+    },
+    {
+        "this_self_up_childof_2_lvl",
+        Flatten_this_self_up_childof_2_lvl
+    },
+    {
+        "this_self_up_childof_2_lvl_w_component",
+        Flatten_this_self_up_childof_2_lvl_w_component
+    },
+    {
+        "this_self_up_childof_2_lvl_w_component_inherited",
+        Flatten_this_self_up_childof_2_lvl_w_component_inherited
+    },
+    {
+        "this_self_up_childof_2_lvl_w_owned",
+        Flatten_this_self_up_childof_2_lvl_w_owned
     }
 };
 
@@ -10866,7 +10921,7 @@ static bake_test_suite suites[] = {
         "Flatten",
         Flatten_setup,
         NULL,
-        48,
+        59,
         Flatten_testcases,
         1,
         Flatten_params

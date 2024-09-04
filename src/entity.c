@@ -546,7 +546,7 @@ void flecs_notify_on_add(
     if (added->count) {
         ecs_flags32_t diff_flags = 
             diff->added_flags|(table->flags & 
-                (EcsTableHasTraversable|EcsTableHasFlattened));
+                (EcsTableHasTraversable|EcsTableHasParent));
         if (!diff_flags) {
             return;
         }
@@ -589,7 +589,7 @@ void flecs_notify_on_remove(
     if (removed->count) {
         ecs_flags32_t diff_flags = 
             diff->removed_flags|(table->flags & 
-                (EcsTableHasTraversable|EcsTableHasFlattened));
+                (EcsTableHasTraversable|EcsTableHasParent));
         if (!diff_flags) {
             return;
         }

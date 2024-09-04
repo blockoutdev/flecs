@@ -310,7 +310,7 @@ bool flecs_query_with_flat_any(
         ecs_table_t *table = flecs_query_get_table(
             op, &op->src, EcsQuerySrc, ctx);
         ecs_assert(table != NULL, ECS_INTERNAL_ERROR, NULL);
-        if (!(table->flags & EcsTableHasFlattened)) {
+        if (!(table->flags & EcsTableHasParent)) {
             return false;
         }
 

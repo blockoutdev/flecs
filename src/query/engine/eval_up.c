@@ -79,8 +79,9 @@ ecs_trav_down_t* flecs_query_up_find_next_traversable(
     const ecs_query_t *q = &ctx->query->pub;
     ecs_table_t *table = op_ctx->table;
     bool self = trav_kind == FlecsQueryUpSelectSelfUp;
+    bool has_children = table->flags & EcsTableHasChildren;
 
-    if (table->_->traversable_count == 0) {
+    if (table->_->traversable_count == 0 && !has_children) {
         /* No traversable entities in table */
         op_ctx->table = NULL;
         return NULL;
@@ -92,7 +93,7 @@ ecs_trav_down_t* flecs_query_up_find_next_traversable(
         for (row = op_ctx->row; row < op_ctx->end; row ++) {
             entity = entities[row];
             ecs_record_t *record = flecs_entities_get(world, entity);
-            if (record->row & EcsEntityIsTraversable) {
+            if (record->row & EcsEntityIsTraversable || has_children) {
                 /* Found traversable entity */
                 it->sources[op->field_index] = entity;
                 break;
@@ -224,41 +225,6 @@ next_down_entry:
             op_ctx->row ++;
         }
 
-        /* Handle flattened hierarchy */
-        if (op_ctx->children) {
-            op_ctx->row --;
-            ecs_assert(op_ctx->row < op_ctx->end, ECS_INTERNAL_ERROR, NULL);
-
-next_flattened_parent: {
-                const EcsChildren *children = &op_ctx->children[op_ctx->row];
-                int32_t count = ecs_vec_count(&children->children);
-                ecs_assert(op_ctx->cur_child <= count, ECS_INTERNAL_ERROR, NULL);
-
-                /* Iterate flattened children for current parent*/
-                if (op_ctx->cur_child < count) {
-                    ecs_entity_t child = ecs_vec_get_t(&children->children,
-                        ecs_entity_t, op_ctx->cur_child)[0];
-                    flecs_query_var_set_entity(op, op->src.var, child, ctx);
-                    it->sources[op->field_index] = 
-                        ecs_table_entities(table)[op_ctx->row];
-                    op_ctx->cur_child ++;
-                    return true;
-                } else {
-                    /* No more flattened children for current parent, move to 
-                     * next parent in table. */
-                    op_ctx->row ++;
-                    if (op_ctx->row > op_ctx->end) {
-                        /* No more parents in table, continue normal traversal */
-                        op_ctx->row = 0;
-                        op_ctx->children = NULL;
-                    } else {
-                        op_ctx->cur_child = 0;
-                        goto next_flattened_parent;
-                    }
-                }
-            }
-        }
-
         /* Get down cache entry for next traversable entity in table */
         down = flecs_query_up_find_next_traversable(
             op, ctx, trav_kind, kind);
@@ -268,6 +234,7 @@ next_flattened_parent: {
     }
 
 next_down_elem:
+
     /* Get next element (table) in cache entry */
     if ((++ op_ctx->cache_elem) >= ecs_vec_count(&down->elems)) {
         /* No more elements in cache entry, find next.*/
@@ -277,14 +244,15 @@ next_down_elem:
 
     ecs_trav_down_elem_t *elem = ecs_vec_get_t(
         &down->elems, ecs_trav_down_elem_t, op_ctx->cache_elem);
-    flecs_query_var_set_range(op, op->src.var, elem->table, 0, 0, ctx);
+    flecs_query_var_set_range(op, op->src.var, 
+        elem->range.table, elem->range.offset, elem->range.count, ctx);
     flecs_query_set_vars(op, op_ctx->matched, ctx);
 
-    if (flecs_query_table_filter(elem->table, op->other, 
+    if (flecs_query_table_filter(elem->range.table, op->other,
         (EcsTableNotQueryable|EcsTableIsPrefab|EcsTableIsDisabled)))
     {
         /* Go to next table if table contains prefabs, disabled entities or
-         * entities that are not queryable. */
+        * entities that are not queryable. */
         goto next_down_elem;
     }
 

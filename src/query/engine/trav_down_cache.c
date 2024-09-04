@@ -26,6 +26,7 @@ ecs_trav_down_t* flecs_trav_entity_down(
     ecs_entity_t trav,
     ecs_id_record_t *idr_trav,
     ecs_id_record_t *idr_with,
+    const EcsChildren *children,
     bool self,
     bool empty);
 
@@ -52,22 +53,35 @@ ecs_trav_down_t* flecs_trav_table_down(
     ecs_trav_up_cache_t *cache,
     ecs_trav_down_t *dst,
     ecs_entity_t trav,
-    const ecs_table_t *table,
+    const ecs_table_range_t *range,
     ecs_id_record_t *idr_with,
     bool self,
     bool empty)
 {
-    ecs_assert(table->id != 0, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(range != NULL, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(range->table != NULL, ECS_INTERNAL_ERROR, NULL);
+    ecs_assert(range->table->id != 0, ECS_INTERNAL_ERROR, NULL);
 
-    if (!table->_->traversable_count) {
+    ecs_table_t *table = range->table;
+
+    const EcsChildren *children = NULL;
+    if (table->flags & EcsTableHasChildren) {
+        int32_t children_col = ecs_table_get_column_index(
+            world, table, ecs_pair_t(EcsChildren, trav));
+        if (children_col != -1) {
+            children = ecs_table_get_column(table, children_col, 0);
+        }
+    }
+
+    if (!table->_->traversable_count && !children) {
         return dst;
     }
 
     ecs_assert(idr_with != NULL, ECS_INTERNAL_ERROR, NULL);
 
     const ecs_entity_t *entities = ecs_table_entities(table);
-    int32_t i, count = ecs_table_count(table);
-    for (i = 0; i < count; i ++) {
+    int32_t i = range->offset, end = range->offset + range->count;
+    for (; i < end; i ++) {
         ecs_entity_t entity = entities[i];
         ecs_record_t *record = flecs_entities_get(world, entity);
         if (!record) {
@@ -75,15 +89,11 @@ ecs_trav_down_t* flecs_trav_table_down(
         }
 
         uint32_t flags = ECS_RECORD_TO_ROW_FLAGS(record->row);
-        if (flags & EcsEntityIsTraversable) {
+        if (flags & EcsEntityIsTraversable || children) {
             ecs_id_record_t *idr_trav = flecs_id_record_get(world, 
                 ecs_pair(trav, entity));
-            if (!idr_trav) {
-                continue;
-            }
-
-            flecs_trav_entity_down(world, a, cache, dst, 
-                trav, idr_trav, idr_with, self, empty);
+            flecs_trav_entity_down(world, a, cache, dst, trav, idr_trav, 
+                idr_with, children ? &children[i] : NULL, self, empty);
         }
     }
 
@@ -117,7 +127,17 @@ void flecs_trav_entity_down_isa(
         ecs_table_record_t *tr;
         while ((tr = flecs_table_cache_next(&it, ecs_table_record_t))) {
             ecs_table_t *table = tr->hdr.table;
-            if (!table->_->traversable_count) {
+
+            const EcsChildren *children = NULL;
+            if (table->flags & EcsTableHasChildren) {
+                int32_t children_col = ecs_table_get_column_index(
+                    world, table, ecs_pair_t(EcsChildren, trav));
+                if (children_col != -1) {
+                    children = ecs_table_get_column(table, children_col, 0);
+                }
+            }   
+            
+            if (!table->_->traversable_count && !children) {
                 continue;
             }
 
@@ -136,12 +156,13 @@ void flecs_trav_entity_down_isa(
                 }
 
                 uint32_t flags = ECS_RECORD_TO_ROW_FLAGS(record->row);
-                if (flags & EcsEntityIsTraversable) {
+                if (flags & EcsEntityIsTraversable || children) {
                     ecs_id_record_t *idr_trav = flecs_id_record_get(world, 
                         ecs_pair(trav, e));
-                    if (idr_trav) {
+                    if (idr_trav || children) {
                         flecs_trav_entity_down(world, a, cache, dst, trav,
-                            idr_trav, idr_with, self, empty);
+                            idr_trav, idr_with, children ? &children[i] : NULL, 
+                                self, empty);
                     }
 
                     flecs_trav_entity_down_isa(world, a, cache, dst, trav, e, 
@@ -161,80 +182,107 @@ ecs_trav_down_t* flecs_trav_entity_down(
     ecs_entity_t trav,
     ecs_id_record_t *idr_trav,
     ecs_id_record_t *idr_with,
+    const EcsChildren *children,
     bool self,
     bool empty)
 {
     ecs_assert(dst != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(idr_with != NULL, ECS_INTERNAL_ERROR, NULL);
-    ecs_assert(idr_trav != NULL, ECS_INTERNAL_ERROR, NULL);
 
     int32_t first = ecs_vec_count(&dst->elems);
 
-    ecs_table_cache_iter_t it;
-    bool result;
-    if (empty) {
-        result = flecs_table_cache_all_iter(&idr_trav->cache, &it);
-    } else {
-        result = flecs_table_cache_iter(&idr_trav->cache, &it);
+    /* Traverse tables with (trav, entity) relationship */
+    if (idr_trav) {
+        ecs_table_cache_iter_t it;
+        bool result;
+        if (empty) {
+            result = flecs_table_cache_all_iter(&idr_trav->cache, &it);
+        } else {
+            result = flecs_table_cache_iter(&idr_trav->cache, &it);
+        }
+
+        if (result) {
+            ecs_table_record_t *tr; 
+            while ((tr = flecs_table_cache_next(&it, ecs_table_record_t))) {
+                ecs_assert(tr->count == 1, ECS_INTERNAL_ERROR, NULL);
+                ecs_table_t *table = tr->hdr.table;
+                bool leaf = false;
+
+                /* Check if table has the component*/
+                if (flecs_id_record_get_table(idr_with, table) != NULL) {
+                    if (self) {
+                        continue;
+                    }
+                    leaf = true;
+                }
+
+                /* If record is not the first instance of (trav, *), don't add it
+                 * to the cache. */
+                int32_t index = tr->index;
+                if (index) {
+                    ecs_id_t id = table->type.array[index - 1];
+                    if (ECS_IS_PAIR(id) && ECS_PAIR_FIRST(id) == trav) {
+                        int32_t col = ecs_search_relation(world, table, 0, 
+                            idr_with->id, trav, EcsUp, NULL, NULL, &tr);
+                        ecs_assert(col >= 0, ECS_INTERNAL_ERROR, NULL);
+
+                        if (col != index) {
+                            /* First relationship through which the id is 
+                             * reachable is not the current one, so skip. */
+                            continue;
+                        }
+                    }
+                }
+
+                ecs_trav_down_elem_t *elem = ecs_vec_append_t(
+                    a, &dst->elems, ecs_trav_down_elem_t);
+                elem->range.table = table;
+                elem->range.offset = 0;
+                elem->range.count = ecs_table_count(table);
+                elem->leaf = leaf;
+            }
+        }
     }
 
-    if (result) {
-        ecs_table_record_t *tr; 
-        while ((tr = flecs_table_cache_next(&it, ecs_table_record_t))) {
-            ecs_assert(tr->count == 1, ECS_INTERNAL_ERROR, NULL);
-            ecs_table_t *table = tr->hdr.table;
+    /* Traverse children in (Children, trav) component */
+    if (children) {
+        int32_t i, count = ecs_vec_count(&children->children);
+        ecs_entity_t *elems = ecs_vec_first(&children->children);
+        for (i = 0; i < count; i ++) {
+            ecs_entity_t e = elems[i];
+            ecs_record_t *r = flecs_entities_get(world, e);
             bool leaf = false;
 
-            if (flecs_id_record_get_table(idr_with, table) != NULL) {
+            /* Check if table has the component*/
+            if (flecs_id_record_get_table(idr_with, r->table) != NULL) {
                 if (self) {
+                    /* If matching self and the table has the component, entity
+                     * shouldn't be matched through traversal and will instead
+                     * be matched directly.*/
                     continue;
                 }
+
                 leaf = true;
             }
 
-            /* If record is not the first instance of (trav, *), don't add it
-             * to the cache. */
-            int32_t index = tr->index;
-            if (index) {
-                ecs_id_t id = table->type.array[index - 1];
-                if (ECS_IS_PAIR(id) && ECS_PAIR_FIRST(id) == trav) {
-                    int32_t col = ecs_search_relation(world, table, 0, 
-                        idr_with->id, trav, EcsUp, NULL, NULL, &tr);
-                    ecs_assert(col >= 0, ECS_INTERNAL_ERROR, NULL);
-
-                    if (col != index) {
-                        /* First relationship through which the id is 
-                         * reachable is not the current one, so skip. */
-                        continue;
-                    }
-                }
-            }
-
+            /* Add element to the cache for a single child */
             ecs_trav_down_elem_t *elem = ecs_vec_append_t(
                 a, &dst->elems, ecs_trav_down_elem_t);
-            elem->table = table;
+            elem->range.table = r->table;
+            elem->range.offset = ECS_RECORD_TO_ROW(r->row);
+            elem->range.count = 1;
             elem->leaf = leaf;
         }
     }
 
-    /* Breadth first walk */
+    /* Breadth first walk which traverses all found tables/ranges downwards. */
     int32_t t, last = ecs_vec_count(&dst->elems);
     for (t = first; t < last; t ++) {
         ecs_trav_down_elem_t *elem = ecs_vec_get_t(
             &dst->elems, ecs_trav_down_elem_t, t);
         if (!elem->leaf) {
             flecs_trav_table_down(world, a, cache, dst, trav,
-                elem->table, idr_with, self, empty);
-        }
-    }
-
-    /* Check for flattened hierarchies */
-    ecs_record_t *r = ecs_record_find(world, e);
-    ecs_assert(r != NULL, ECS_INTERNAL_ERROR, NULL);
-    ecs_table_t *table = r->table;
-    if (table) {
-        if (table->flags & EcsTableHasFlattened) {
-            printf(" - has flattened\n");
+                &elem->range, idr_with, self, empty);
         }
     }
 
@@ -259,18 +307,28 @@ ecs_trav_down_t* flecs_query_get_down_cache(
 
     ecs_trav_down_t *result = flecs_trav_down_ensure(ctx, cache, e);
     if (result->ready) {
+        /* Cache hit */
         return result;
     }
 
-    ecs_id_record_t *idr_trav = flecs_id_record_get(world, ecs_pair(trav, e));
-    if (!idr_trav) {
-        if (trav != EcsIsA) {
-            flecs_trav_entity_down_isa(
-                world, a, cache, result, trav, e, idr_with, self, empty);
+    /* Check if entity has (Children, trav) component. If so, children in this
+     * component also have to be traversed. */
+    ecs_record_t *r = flecs_entities_get(world, e);
+    ecs_table_t *table;
+    const EcsChildren *children = NULL;
+    if (r && (table = r->table)) {
+        if (table->flags & EcsTableHasChildren) {
+            int32_t children_col = ecs_table_get_column_index(
+                world, table, ecs_pair_t(EcsChildren, trav));
+            if (children_col != -1) {
+                children = ecs_table_get_column(table, children_col, 
+                    ECS_RECORD_TO_ROW(r->row));
+            }
         }
-        result->ready = true;
-        return result;
     }
+
+    /* Get tables with regular (trav, entity) relationship */
+    ecs_id_record_t *idr_trav = flecs_id_record_get(world, ecs_pair(trav, e));
 
     ecs_vec_init_t(a, &result->elems, ecs_trav_down_elem_t, 0);
 
@@ -281,8 +339,8 @@ ecs_trav_down_t* flecs_query_get_down_cache(
             world, a, cache, result, trav, e, idr_with, self, empty);
     }
 
-    flecs_trav_entity_down(
-        world, a, cache, result, trav, idr_trav, idr_with, self, empty);
+    flecs_trav_entity_down(world, a, cache, result, trav, idr_trav, idr_with, 
+        children, self, empty);
     result->ready = true;
 
     return result;

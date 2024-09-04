@@ -158,7 +158,7 @@ typedef struct {
 
 /* Down traversal cache (for resolving up queries w/unknown source) */
 typedef struct {
-    ecs_table_t *table;
+    ecs_table_range_t range;
     bool leaf; /* Table owns and inherits id (for Up queries without Self) */
 } ecs_trav_down_elem_t;
 

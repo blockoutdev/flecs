@@ -2028,7 +2028,18 @@
                 "var_written_childof_parent_w_component_inherit",
                 "this_up_childof",
                 "this_up_childof_w_component",
-                "this_up_childof_w_component_inherited"
+                "this_up_childof_w_component_inherited",
+                "this_up_childof_2_lvl",
+                "this_up_childof_2_lvl_w_component",
+                "this_up_childof_2_lvl_w_component_inherited",
+                "this_up_childof_2_lvl_w_owned",
+                "this_self_up_childof",
+                "this_self_up_childof_w_component",
+                "this_self_up_childof_w_component_inherited",
+                "this_self_up_childof_2_lvl",
+                "this_self_up_childof_2_lvl_w_component",
+                "this_self_up_childof_2_lvl_w_component_inherited",
+                "this_self_up_childof_2_lvl_w_owned"
             ]
         }, {
             "id": "Sparse",

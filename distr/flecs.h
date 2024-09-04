@@ -549,9 +549,10 @@ extern "C" {
 #define EcsTableHasOnTableDelete       (1u << 22u)
 #define EcsTableHasSparse              (1u << 23u)
 #define EcsTableHasUnion               (1u << 24u)
-#define EcsTableHasFlattened           (1u << 25u)
+#define EcsTableHasParent              (1u << 25u)
+#define EcsTableHasChildren            (1u << 26u)
 
-#define EcsTableHasTraversable         (1u << 26u)
+#define EcsTableHasTraversable         (1u << 27u)
 #define EcsTableMarkedForDelete        (1u << 30u)
 
 /* Composite table flags */
@@ -559,8 +560,8 @@ extern "C" {
 #define EcsTableIsComplex        (EcsTableHasLifecycle | EcsTableHasToggle | EcsTableHasSparse)
 #define EcsTableHasAddActions    (EcsTableHasIsA | EcsTableHasCtors | EcsTableHasOnAdd | EcsTableHasOnSet)
 #define EcsTableHasRemoveActions (EcsTableHasIsA | EcsTableHasDtors | EcsTableHasOnRemove)
-#define EcsTableAddEdgeFlags     (EcsTableHasOnAdd | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasFlattened)
-#define EcsTableRemoveEdgeFlags  (EcsTableHasOnRemove | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasFlattened)
+#define EcsTableAddEdgeFlags     (EcsTableHasOnAdd | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasParent)
+#define EcsTableRemoveEdgeFlags  (EcsTableHasOnRemove | EcsTableHasSparse | EcsTableHasUnion | EcsTableHasParent)
 #define EcsTableEdgeFlags        (EcsTableAddEdgeFlags | EcsTableRemoveEdgeFlags)
 
 ////////////////////////////////////////////////////////////////////////////////
