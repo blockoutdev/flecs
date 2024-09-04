@@ -1948,6 +1948,8 @@ void Flatten_this_written_childof_var(void);
 void Flatten_var_written_childof_parent(void);
 void Flatten_var_written_childof_parent_w_component(void);
 void Flatten_var_written_childof_parent_w_component_inherit(void);
+void Flatten_this_up_childof(void);
+void Flatten_this_up_childof_w_component(void);
 
 // Testsuite 'Sparse'
 void Sparse_setup(void);
@@ -9786,6 +9788,14 @@ bake_test_case Flatten_testcases[] = {
     {
         "var_written_childof_parent_w_component_inherit",
         Flatten_var_written_childof_parent_w_component_inherit
+    },
+    {
+        "this_up_childof",
+        Flatten_this_up_childof
+    },
+    {
+        "this_up_childof_w_component",
+        Flatten_this_up_childof_w_component
     }
 };
 
@@ -10851,7 +10861,7 @@ static bake_test_suite suites[] = {
         "Flatten",
         Flatten_setup,
         NULL,
-        45,
+        47,
         Flatten_testcases,
         1,
         Flatten_params

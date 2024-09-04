@@ -15,6 +15,7 @@ bool flecs_query_up_select_table(
     ecs_query_up_select_kind_t kind)
 {
     ecs_query_up_ctx_t *op_ctx = flecs_op_ctx(ctx, up);
+    ecs_world_t *world = ctx->world;
     ecs_iter_t *it = ctx->it;
     bool self = trav_kind == FlecsQueryUpSelectSelfUp;
     ecs_table_range_t range;
@@ -42,9 +43,15 @@ bool flecs_query_up_select_table(
         range = flecs_query_get_range(op, &op->src, EcsQuerySrc, ctx);
         ecs_assert(range.table != NULL, ECS_INTERNAL_ERROR, NULL);
 
+        /* Get children component, in case table contains parents with 
+         * flattened hierarchies.*/
+        op_ctx->children = ecs_table_get_id(world, range.table, 
+            ecs_pair_t(EcsChildren, op_ctx->trav), 0);
+
         /* Keep searching until we find a table that has the requested component, 
          * with traversable entities */
-    } while (!self && range.table->_->traversable_count == 0);
+    } while (!self && range.table->_->traversable_count == 0 && 
+        !op_ctx->children);
 
     if (!range.count) {
         range.count = ecs_table_count(range.table);
@@ -59,11 +66,11 @@ bool flecs_query_up_select_table(
 }
 
 /* Find next traversable entity in table. */
-static
 ecs_trav_down_t* flecs_query_up_find_next_traversable(
     const ecs_query_op_t *op,
     const ecs_query_run_ctx_t *ctx,
-    ecs_query_up_select_trav_kind_t trav_kind)
+    ecs_query_up_select_trav_kind_t trav_kind,
+    ecs_query_up_select_kind_t kind)
 {
     ecs_query_up_ctx_t *op_ctx = flecs_op_ctx(ctx, up);
     ecs_world_t *world = ctx->world;
@@ -166,6 +173,7 @@ bool flecs_query_up_select(
 
         op_ctx->down = NULL;
         op_ctx->cache_elem = 0;
+        op_ctx->children = NULL;
     }
 
     /* Get last used entry from down traversal cache. Cache entries in the down
@@ -216,7 +224,8 @@ next_down_entry:
         }
 
         /* Get down cache entry for next traversable entity in table */
-        down = flecs_query_up_find_next_traversable(op, ctx, trav_kind);
+        down = flecs_query_up_find_next_traversable(
+            op, ctx, trav_kind, kind);
         if (!down) {
             goto next_down_entry;
         }

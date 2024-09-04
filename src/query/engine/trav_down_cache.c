@@ -228,6 +228,16 @@ ecs_trav_down_t* flecs_trav_entity_down(
         }
     }
 
+    /* Check for flattened hierarchies */
+    ecs_record_t *r = ecs_record_find(world, e);
+    ecs_assert(r != NULL, ECS_INTERNAL_ERROR, NULL);
+    ecs_table_t *table = r->table;
+    if (table) {
+        if (table->flags & EcsTableHasFlattened) {
+            printf(" - has flattened\n");
+        }
+    }
+
     return dst;
 }
 

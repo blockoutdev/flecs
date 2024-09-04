@@ -192,6 +192,7 @@ typedef struct {
         ecs_query_union_ctx_t union_;
     } is;
     ecs_table_t *table;
+    const EcsChildren *children;
     int32_t row;
     int32_t end;
     ecs_entity_t trav;
