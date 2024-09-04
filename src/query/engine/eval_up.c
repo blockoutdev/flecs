@@ -51,7 +51,7 @@ bool flecs_query_up_select_table(
         /* Keep searching until we find a table that has the requested component, 
          * with traversable entities */
     } while (!self && range.table->_->traversable_count == 0 && 
-        !op_ctx->children);
+    !op_ctx->children);
 
     if (!range.count) {
         range.count = ecs_table_count(range.table);
@@ -61,6 +61,7 @@ bool flecs_query_up_select_table(
     op_ctx->row = range.offset;
     op_ctx->end = range.offset + range.count;
     op_ctx->matched = it->ids[op->field_index];
+    op_ctx->cur_child = 0;
 
     return true;
 }
@@ -221,6 +222,41 @@ next_down_entry:
         } else {
             /* Evaluate next entity in table */
             op_ctx->row ++;
+        }
+
+        /* Handle flattened hierarchy */
+        if (op_ctx->children) {
+            op_ctx->row --;
+            ecs_assert(op_ctx->row < op_ctx->end, ECS_INTERNAL_ERROR, NULL);
+
+next_flattened_parent: {
+                const EcsChildren *children = &op_ctx->children[op_ctx->row];
+                int32_t count = ecs_vec_count(&children->children);
+                ecs_assert(op_ctx->cur_child <= count, ECS_INTERNAL_ERROR, NULL);
+
+                /* Iterate flattened children for current parent*/
+                if (op_ctx->cur_child < count) {
+                    ecs_entity_t child = ecs_vec_get_t(&children->children,
+                        ecs_entity_t, op_ctx->cur_child)[0];
+                    flecs_query_var_set_entity(op, op->src.var, child, ctx);
+                    it->sources[op->field_index] = 
+                        ecs_table_entities(table)[op_ctx->row];
+                    op_ctx->cur_child ++;
+                    return true;
+                } else {
+                    /* No more flattened children for current parent, move to 
+                     * next parent in table. */
+                    op_ctx->row ++;
+                    if (op_ctx->row > op_ctx->end) {
+                        /* No more parents in table, continue normal traversal */
+                        op_ctx->row = 0;
+                        op_ctx->children = NULL;
+                    } else {
+                        op_ctx->cur_child = 0;
+                        goto next_flattened_parent;
+                    }
+                }
+            }
         }
 
         /* Get down cache entry for next traversable entity in table */

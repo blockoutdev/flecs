@@ -2027,7 +2027,8 @@
                 "var_written_childof_parent_w_component",
                 "var_written_childof_parent_w_component_inherit",
                 "this_up_childof",
-                "this_up_childof_w_component"
+                "this_up_childof_w_component",
+                "this_up_childof_w_component_inherited"
             ]
         }, {
             "id": "Sparse",

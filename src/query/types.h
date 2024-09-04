@@ -193,6 +193,7 @@ typedef struct {
     } is;
     ecs_table_t *table;
     const EcsChildren *children;
+    int32_t cur_child;
     int32_t row;
     int32_t end;
     ecs_entity_t trav;

@@ -3170,16 +3170,11 @@ void Flatten_this_up_childof(void) {
     test_assert(ecs_has_pair(world, child_ids_2[0], EcsIsA, c_1));
     test_assert(ecs_has_pair(world, child_ids_2[1], EcsIsA, c_2));
 
-    printf("i_1 = %s\n", ecs_entity_str(world, i_1));
-
     ecs_query_t *q = ecs_query(world, {
         .terms = {
             { .id = Bar, .src.id = EcsUp }
         }
     });
-
-    printf("%s\n", ecs_query_str(q));
-    printf("%s\n", ecs_query_plan(q));
 
     test_assert(q != NULL);
 
@@ -3216,5 +3211,195 @@ void Flatten_this_up_childof(void) {
 }
 
 void Flatten_this_up_childof_w_component(void) {
-    // Implement testcase
+    ecs_world_t *world = ecs_mini();
+
+    ECS_TAG(world, Foo);
+    ECS_COMPONENT(world, Position);
+
+    ecs_entity_t p = ecs_new_w_id(world, EcsPrefab);
+    ecs_set(world, p, Position, {10, 20});
+    ecs_entity_t c_1 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_2 = ecs_new_w_pair(world, EcsChildOf, p);
+
+    ecs_add(world, c_1, Foo);
+    ecs_add(world, c_2, Foo);
+
+    ecs_entity_t i_1 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children_1 = ecs_get_pair(
+        world, i_1, EcsChildren, EcsChildOf);
+    test_assert(children_1 != NULL);
+
+    ecs_entity_t *child_ids_1 = ecs_vec_first(&children_1->children);
+    test_assert(child_ids_1 != NULL);
+    test_int(ecs_vec_count(&children_1->children), 2);
+    test_assert(ecs_has_pair(world, child_ids_1[0], EcsIsA, c_1));
+    test_assert(ecs_has_pair(world, child_ids_1[1], EcsIsA, c_2));
+
+    ecs_entity_t i_2 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children_2 = ecs_get_pair(
+        world, i_2, EcsChildren, EcsChildOf);
+    test_assert(children_2 != NULL);
+
+    ecs_entity_t *child_ids_2 = ecs_vec_first(&children_2->children);
+    test_assert(child_ids_2 != NULL);
+    test_int(ecs_vec_count(&children_2->children), 2);
+    test_assert(ecs_has_pair(world, child_ids_2[0], EcsIsA, c_1));
+    test_assert(ecs_has_pair(world, child_ids_2[1], EcsIsA, c_2));
+
+    ecs_query_t *q = ecs_query(world, {
+        .terms = {
+            { .id = ecs_id(Position), .src.id = EcsUp }
+        }
+    });
+
+    test_assert(q != NULL);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_1[0]);
+    test_uint(i_1, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+    
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_1[1]);
+    test_uint(i_1, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_2[0]);
+    test_uint(i_2, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+    
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_2[1]);
+    test_uint(i_2, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
+}
+
+void Flatten_this_up_childof_w_component_inherited(void) {
+    ecs_world_t *world = ecs_mini();
+
+    ECS_TAG(world, Foo);
+    ECS_COMPONENT(world, Position);
+
+    ecs_add_pair(world, ecs_id(Position), EcsOnInstantiate, EcsInherit);
+
+    ecs_entity_t p = ecs_new_w_id(world, EcsPrefab);
+    ecs_set(world, p, Position, {10, 20});
+    ecs_entity_t c_1 = ecs_new_w_pair(world, EcsChildOf, p);
+    ecs_entity_t c_2 = ecs_new_w_pair(world, EcsChildOf, p);
+
+    ecs_add(world, c_1, Foo);
+    ecs_add(world, c_2, Foo);
+
+    ecs_entity_t i_1 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children_1 = ecs_get_pair(
+        world, i_1, EcsChildren, EcsChildOf);
+    test_assert(children_1 != NULL);
+
+    ecs_entity_t *child_ids_1 = ecs_vec_first(&children_1->children);
+    test_assert(child_ids_1 != NULL);
+    test_int(ecs_vec_count(&children_1->children), 2);
+    test_assert(ecs_has_pair(world, child_ids_1[0], EcsIsA, c_1));
+    test_assert(ecs_has_pair(world, child_ids_1[1], EcsIsA, c_2));
+
+    ecs_entity_t i_2 = ecs_new_w_pair(world, EcsIsA, p);
+    const EcsChildren *children_2 = ecs_get_pair(
+        world, i_2, EcsChildren, EcsChildOf);
+    test_assert(children_2 != NULL);
+
+    ecs_entity_t *child_ids_2 = ecs_vec_first(&children_2->children);
+    test_assert(child_ids_2 != NULL);
+    test_int(ecs_vec_count(&children_2->children), 2);
+    test_assert(ecs_has_pair(world, child_ids_2[0], EcsIsA, c_1));
+    test_assert(ecs_has_pair(world, child_ids_2[1], EcsIsA, c_2));
+
+    ecs_query_t *q = ecs_query(world, {
+        .terms = {
+            { .id = ecs_id(Position), .src.id = EcsUp }
+        }
+    });
+
+    test_assert(q != NULL);
+
+    ecs_iter_t it = ecs_query_iter(world, q);
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_1[0]);
+    test_uint(p, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+    
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_1[1]);
+    test_uint(p, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_2[0]);
+    test_uint(p, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+    
+    test_bool(true, ecs_query_next(&it));
+    test_int(1, it.count);
+    test_uint(it.entities[0], child_ids_2[1]);
+    test_uint(p, ecs_field_src(&it, 0));
+    test_uint(ecs_id(Position), ecs_field_id(&it, 0));
+    {
+        Position *p = ecs_field(&it, Position, 0);
+        test_int(10, p->x);
+        test_int(20, p->y);
+    }
+
+    test_bool(false, ecs_query_next(&it));
+
+    ecs_query_fini(q);
+
+    ecs_fini(world);
 }
