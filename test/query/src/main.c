@@ -1962,6 +1962,27 @@ void Flatten_this_self_up_childof_2_lvl(void);
 void Flatten_this_self_up_childof_2_lvl_w_component(void);
 void Flatten_this_self_up_childof_2_lvl_w_component_inherited(void);
 void Flatten_this_self_up_childof_2_lvl_w_owned(void);
+void Flatten_this_up_childof_2_lvl_children(void);
+void Flatten_this_up_childof_2_lvl_children_w_component(void);
+void Flatten_this_up_childof_2_lvl_children_on_instantiate_inherit(void);
+void Flatten_this_up_childof_2_lvl_children_w_component_on_instantiate_inherit(void);
+void Flatten_this_up_childof_2_lvl_children_on_instantiate_dont_inherit(void);
+void Flatten_this_up_childof_2_lvl_children_remove_override(void);
+void Flatten_this_self_up_childof_2_lvl_children(void);
+void Flatten_this_self_up_childof_2_lvl_children_w_component(void);
+void Flatten_this_self_up_childof_2_lvl_children_on_instantiate_inherit(void);
+void Flatten_this_self_up_childof_2_lvl_children_on_instantiate_dont_inherit(void);
+void Flatten_this_self_up_childof_2_lvl_children_remove_override(void);
+void Flatten_this_up_childof_2_lvl_children_from_child(void);
+void Flatten_this_up_childof_2_lvl_children_w_component_from_child(void);
+void Flatten_this_up_childof_2_lvl_children_from_child_on_instantiate_inherit(void);
+void Flatten_this_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit(void);
+void Flatten_this_up_childof_2_lvl_children_from_child_remove_override(void);
+void Flatten_this_self_up_childof_2_lvl_children_from_child(void);
+void Flatten_this_self_up_childof_2_lvl_children_w_component_from_child(void);
+void Flatten_this_self_up_childof_2_lvl_children_from_child_on_instantiate_inherit(void);
+void Flatten_this_self_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit(void);
+void Flatten_this_self_up_childof_2_lvl_children_from_child_remove_override(void);
 
 // Testsuite 'Sparse'
 void Sparse_setup(void);
@@ -9856,6 +9877,90 @@ bake_test_case Flatten_testcases[] = {
     {
         "this_self_up_childof_2_lvl_w_owned",
         Flatten_this_self_up_childof_2_lvl_w_owned
+    },
+    {
+        "this_up_childof_2_lvl_children",
+        Flatten_this_up_childof_2_lvl_children
+    },
+    {
+        "this_up_childof_2_lvl_children_w_component",
+        Flatten_this_up_childof_2_lvl_children_w_component
+    },
+    {
+        "this_up_childof_2_lvl_children_on_instantiate_inherit",
+        Flatten_this_up_childof_2_lvl_children_on_instantiate_inherit
+    },
+    {
+        "this_up_childof_2_lvl_children_w_component_on_instantiate_inherit",
+        Flatten_this_up_childof_2_lvl_children_w_component_on_instantiate_inherit
+    },
+    {
+        "this_up_childof_2_lvl_children_on_instantiate_dont_inherit",
+        Flatten_this_up_childof_2_lvl_children_on_instantiate_dont_inherit
+    },
+    {
+        "this_up_childof_2_lvl_children_remove_override",
+        Flatten_this_up_childof_2_lvl_children_remove_override
+    },
+    {
+        "this_self_up_childof_2_lvl_children",
+        Flatten_this_self_up_childof_2_lvl_children
+    },
+    {
+        "this_self_up_childof_2_lvl_children_w_component",
+        Flatten_this_self_up_childof_2_lvl_children_w_component
+    },
+    {
+        "this_self_up_childof_2_lvl_children_on_instantiate_inherit",
+        Flatten_this_self_up_childof_2_lvl_children_on_instantiate_inherit
+    },
+    {
+        "this_self_up_childof_2_lvl_children_on_instantiate_dont_inherit",
+        Flatten_this_self_up_childof_2_lvl_children_on_instantiate_dont_inherit
+    },
+    {
+        "this_self_up_childof_2_lvl_children_remove_override",
+        Flatten_this_self_up_childof_2_lvl_children_remove_override
+    },
+    {
+        "this_up_childof_2_lvl_children_from_child",
+        Flatten_this_up_childof_2_lvl_children_from_child
+    },
+    {
+        "this_up_childof_2_lvl_children_w_component_from_child",
+        Flatten_this_up_childof_2_lvl_children_w_component_from_child
+    },
+    {
+        "this_up_childof_2_lvl_children_from_child_on_instantiate_inherit",
+        Flatten_this_up_childof_2_lvl_children_from_child_on_instantiate_inherit
+    },
+    {
+        "this_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit",
+        Flatten_this_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit
+    },
+    {
+        "this_up_childof_2_lvl_children_from_child_remove_override",
+        Flatten_this_up_childof_2_lvl_children_from_child_remove_override
+    },
+    {
+        "this_self_up_childof_2_lvl_children_from_child",
+        Flatten_this_self_up_childof_2_lvl_children_from_child
+    },
+    {
+        "this_self_up_childof_2_lvl_children_w_component_from_child",
+        Flatten_this_self_up_childof_2_lvl_children_w_component_from_child
+    },
+    {
+        "this_self_up_childof_2_lvl_children_from_child_on_instantiate_inherit",
+        Flatten_this_self_up_childof_2_lvl_children_from_child_on_instantiate_inherit
+    },
+    {
+        "this_self_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit",
+        Flatten_this_self_up_childof_2_lvl_children_from_child_on_instantiate_dont_inherit
+    },
+    {
+        "this_self_up_childof_2_lvl_children_from_child_remove_override",
+        Flatten_this_self_up_childof_2_lvl_children_from_child_remove_override
     }
 };
 
@@ -10921,7 +11026,7 @@ static bake_test_suite suites[] = {
         "Flatten",
         Flatten_setup,
         NULL,
-        59,
+        80,
         Flatten_testcases,
         1,
         Flatten_params

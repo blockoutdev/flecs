@@ -177,7 +177,7 @@ const ecs_entity_t EcsDocUuid =                     FLECS_HI_COMPONENT_ID + 119;
 
 /* REST module components */
 #ifdef FLECS_REST
-const ecs_entity_t ecs_id(EcsRest) =                FLECS_HI_COMPONENT_ID + 119;
+const ecs_entity_t ecs_id(EcsRest) =                FLECS_HI_COMPONENT_ID + 120;
 #endif
 
 /* Max static id:

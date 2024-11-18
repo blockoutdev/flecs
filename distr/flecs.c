@@ -5462,14 +5462,13 @@ void flecs_instantiate(
 
     /* If prefab has union relationships, also set them on instance */
     if (base_table->flags & EcsTableHasUnion) {
-        const ecs_entity_t *entities = ecs_table_entities(table);
         ecs_id_record_t *union_idr = flecs_id_record_get(world, 
             ecs_pair(EcsWildcard, EcsUnion));
         ecs_assert(union_idr != NULL, ECS_INTERNAL_ERROR, NULL);
         const ecs_table_record_t *tr = flecs_id_record_get_table(
             union_idr, base_table);
         ecs_assert(tr != NULL, ECS_INTERNAL_ERROR, NULL);
-        int32_t i = 0, j, union_count = 0;
+        int32_t i = 0,  union_count = 0;
         do {
             ecs_id_t id = base_table->type.array[i];
             if (ECS_PAIR_SECOND(id) == EcsUnion) {
@@ -5477,9 +5476,7 @@ void flecs_instantiate(
                 ecs_entity_t tgt = ecs_get_target(world, base, rel, 0);
                 ecs_assert(tgt != 0, ECS_INTERNAL_ERROR, NULL);
 
-                for (j = row; j < (row + count); j ++) {
-                    ecs_add_pair(world, entities[j], rel, tgt);
-                }
+                ecs_add_pair(world, instance, rel, tgt);
 
                 union_count ++;
             }
@@ -17859,7 +17856,7 @@ const ecs_entity_t EcsDocUuid =                     FLECS_HI_COMPONENT_ID + 119;
 
 /* REST module components */
 #ifdef FLECS_REST
-const ecs_entity_t ecs_id(EcsRest) =                FLECS_HI_COMPONENT_ID + 119;
+const ecs_entity_t ecs_id(EcsRest) =                FLECS_HI_COMPONENT_ID + 120;
 #endif
 
 /* Max static id:
@@ -73218,6 +73215,8 @@ ecs_trav_down_t* flecs_query_up_find_next_traversable(
         }
 
         op_ctx->row = row;
+
+        printf("=> down cache for %s\n", ecs_entity_str(world, entity));
 
         /* Get down cache entry for traversable entity */
         bool match_empty = (q->flags & EcsQueryMatchEmptyTables) != 0;
