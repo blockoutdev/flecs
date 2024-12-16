@@ -704,9 +704,9 @@ The following operators are supported in expressions, in order of precedence:
 | `==`       | Equality               | `10 == 20`             |
 | `!=`       | Not equal              | `10 != 20`             |
 | `&`        | Bitwise AND            | `2 & 6`                |
-| `\|`       | Bitwise OR             | `2 | 4`                |
+| `|`       | Bitwise OR             | `2 | 4`                |
 | `&&`       | Logical AND            | `true && false`        |
-| `\|\|`     | Logical OR             | `true || false`        |
+| `||`     | Logical OR             | `true || false`        |
 
 ### Values
 The following table lists the different kinds of values that are supported in expressions:
