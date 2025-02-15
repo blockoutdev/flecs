@@ -208,6 +208,9 @@ bool flecs_set_id_flag(
         if (flag == EcsIdIsSparse) {
             flecs_id_record_init_sparse(world, idr);
         }
+        if (flag == EcsIdDontFragment) {
+            flecs_id_record_init_dont_fragment(world, idr);
+        }
         return true;
     }
     return false;

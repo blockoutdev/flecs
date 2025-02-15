@@ -670,6 +670,17 @@ void flecs_compute_table_diff(
                 return;
             }
         }
+    } else {
+        ecs_id_record_t *idr = flecs_id_record_get(world, id);
+        if (idr->flags & EcsIdDontFragment) {
+            ecs_table_diff_t *diff = flecs_bcalloc(
+                &world->allocators.table_diff);
+            diff->added.count = 1;
+            diff->added.array = flecs_wdup_n(world, ecs_id_t, 1, &id);
+            diff->added_flags = EcsTableHasDontFragment|EcsTableHasSparse;
+            edge->diff = diff;
+            return;
+        }
     }
 
     ecs_id_t *ids_node = node_type.array;
@@ -863,7 +874,6 @@ void flecs_add_with_property(
             flecs_add_with_property(world, idr_with_wildcard, dst_type, ra, o);
         }
     }
-
 }
 
 static
@@ -900,6 +910,12 @@ ecs_table_t* flecs_find_table_with(
         r = with;
     }
 
+    if (idr->flags & EcsIdDontFragment) {
+        /* Component doesn't fragment tables */
+        node->flags |= EcsTableHasDontFragment;
+        return node;
+    }
+
     /* Create sequence with new id */
     ecs_type_t dst_type;
     int res = flecs_type_new_with(world, &dst_type, &node->type, with);
@@ -933,13 +949,20 @@ ecs_table_t* flecs_find_table_without(
     ecs_table_t *node,
     ecs_id_t without)
 {
+    ecs_id_record_t *idr = NULL;
+
     if (ECS_IS_PAIR(without)) {
         ecs_entity_t r = 0;
-        ecs_id_record_t *idr = NULL;
         r = ECS_PAIR_FIRST(without);
         idr = flecs_id_record_get(world, ecs_pair(r, EcsWildcard));
         if (idr && idr->flags & EcsIdIsUnion) {
             without = ecs_pair(r, EcsUnion);
+        }
+    } else {
+        idr = flecs_id_record_get(world, without);
+        if (idr && idr->flags & EcsIdDontFragment) {
+            /* Component doesn't fragment tables */
+            return node;
         }
     }
 
@@ -983,7 +1006,7 @@ void flecs_init_edge_for_add(
 
     flecs_table_ensure_hi_edge(world, &table->node.add, id);
 
-    if ((table != to) || (table->flags & EcsTableHasUnion)) {
+    if ((table != to) || (table->flags & (EcsTableHasUnion|EcsTableHasDontFragment))) {
         /* Add edges are appended to refs.next */
         ecs_graph_edge_hdr_t *to_refs = &to->node.refs;
         ecs_graph_edge_hdr_t *next = to_refs->next;

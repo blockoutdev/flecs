@@ -154,6 +154,17 @@ void flecs_id_record_init_sparse(
     }
 }
 
+void flecs_id_record_init_dont_fragment(
+    ecs_world_t *world,
+    ecs_id_record_t *idr)
+{
+    if (world->idr_non_fragmenting_head) {
+        world->idr_non_fragmenting_head->non_fragmenting.prev = idr;
+    }
+    idr->non_fragmenting.next = world->idr_non_fragmenting_head;
+    world->idr_non_fragmenting_head = idr;
+}
+
 static
 void flecs_id_record_fini_sparse(
     ecs_world_t *world,
@@ -380,6 +391,9 @@ ecs_id_record_t* flecs_id_record_new(
             if (ecs_has_id(world, tgt, EcsSparse)) {
                 idr->flags |= EcsIdIsSparse;
             }
+            if (ecs_has_id(world, tgt, EcsDontFragment)) {
+                idr->flags |= EcsIdDontFragment;
+            }
         }
     }
 
@@ -391,6 +405,10 @@ ecs_id_record_t* flecs_id_record_new(
         if (ECS_IS_PAIR(id) && ECS_PAIR_SECOND(id) == EcsUnion) {
             flecs_id_record_init_sparse(world, idr);
         }
+    }
+
+    if (idr->flags & EcsIdDontFragment) {
+        flecs_id_record_init_dont_fragment(world, idr);
     }
 
     if (ecs_should_log_1()) {

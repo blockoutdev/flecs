@@ -70,6 +70,9 @@ struct ecs_id_record_t {
     /* Pair data */
     ecs_pair_id_record_t *pair;
 
+    /* All non-fragmenting ids */
+    ecs_id_record_elem_t non_fragmenting;
+
     /* Refcount */
     int32_t refcount;
 
@@ -137,6 +140,11 @@ ecs_table_record_t* flecs_id_record_get_table(
 
 /* Init sparse storage */
 void flecs_id_record_init_sparse(
+    ecs_world_t *world,
+    ecs_id_record_t *idr);
+
+/* Init non-fragmenting component id */
+void flecs_id_record_init_dont_fragment(
     ecs_world_t *world,
     ecs_id_record_t *idr);
 

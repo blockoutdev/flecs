@@ -957,6 +957,9 @@ struct ecs_world_t {
     ecs_id_record_t *idr_childof_wildcard;
     ecs_id_record_t *idr_identifier_name;
 
+    /* Head of list that points to all non-fragmenting component ids */
+    ecs_id_record_t *idr_non_fragmenting_head;
+
     /* -- Mixins -- */
     ecs_world_t *self;
     ecs_observable_t observable;
@@ -1169,6 +1172,9 @@ struct ecs_id_record_t {
     /* Pair data */
     ecs_pair_id_record_t *pair;
 
+    /* All non-fragmenting ids */
+    ecs_id_record_elem_t non_fragmenting;
+
     /* Refcount */
     int32_t refcount;
 
@@ -1236,6 +1242,11 @@ ecs_table_record_t* flecs_id_record_get_table(
 
 /* Init sparse storage */
 void flecs_id_record_init_sparse(
+    ecs_world_t *world,
+    ecs_id_record_t *idr);
+
+/* Init non-fragmenting component id */
+void flecs_id_record_init_dont_fragment(
     ecs_world_t *world,
     ecs_id_record_t *idr);
 
@@ -3124,6 +3135,11 @@ void flecs_add_ids(
     ecs_id_t *ids,
     int32_t count);
 
+void flecs_entity_remove_non_fragmenting(
+    ecs_world_t *world,
+    ecs_entity_t e,
+    ecs_record_t *r);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Query API
 ////////////////////////////////////////////////////////////////////////////////
@@ -3484,6 +3500,9 @@ bool flecs_set_id_flag(
         idr->flags |= flag;
         if (flag == EcsIdIsSparse) {
             flecs_id_record_init_sparse(world, idr);
+        }
+        if (flag == EcsIdDontFragment) {
+            flecs_id_record_init_dont_fragment(world, idr);
         }
         return true;
     }
@@ -5284,6 +5303,45 @@ void flecs_sparse_on_remove(
     }
 }
 
+void flecs_entity_remove_non_fragmenting(
+    ecs_world_t *world,
+    ecs_entity_t e,
+    ecs_record_t *r)
+{
+    if (!r) {
+        r = flecs_entities_get(world, e);
+    }
+
+    if (!r || !(r->row & EcsEntityHasDontFragment)) {
+        return;
+    }
+
+    ecs_id_record_t *cur = world->idr_non_fragmenting_head;
+    while (cur) {
+        ecs_assert(cur->flags & EcsIdIsSparse, ECS_INTERNAL_ERROR, NULL);
+        if (cur->sparse) {
+            void *ptr = flecs_sparse_get_any(cur->sparse, 0, e);
+            if (ptr) {
+                const ecs_type_info_t *ti = cur->type_info;
+                ecs_xtor_t dtor = ti->hooks.dtor;
+                ecs_iter_action_t on_remove = ti->hooks.on_remove;
+                if (on_remove) {
+                    flecs_invoke_hook(world, NULL, NULL, 1, 0,
+                        &e, cur->id, ti, EcsOnRemove, on_remove);
+                }
+                if (dtor) {
+                    dtor(ptr, 1, ti);
+                }
+                flecs_sparse_remove_fast(cur->sparse, 0, e);
+            }
+        }
+
+        cur = cur->non_fragmenting.next;
+    }
+
+    r->row &= ~EcsEntityHasDontFragment;
+}
+
 static
 void flecs_union_on_add(
     ecs_world_t *world,
@@ -5360,6 +5418,14 @@ void flecs_notify_on_add(
 
         if (sparse && (diff_flags & EcsTableHasSparse)) {
             flecs_sparse_on_add(world, table, row, count, added, construct);
+            if (diff_flags & EcsTableHasDontFragment) {
+                int32_t i;
+                const ecs_entity_t *entities = ecs_table_entities(table);
+                for (i = row; i < (row + count); i ++) {
+                    ecs_record_t *r = flecs_entities_get(world, entities[i]);
+                    r->row |= EcsEntityHasDontFragment;
+                }
+            }
         }
 
         if (diff_flags & EcsTableHasUnion) {
@@ -5607,8 +5673,10 @@ void flecs_commit(
         /* If source and destination table are the same no action is needed *
          * However, if a component was added in the process of traversing a
          * table, this suggests that a union relationship could have changed. */
-        if (src_table->flags & EcsTableHasUnion) {
-            diff->added_flags |= EcsIdIsUnion;
+        ecs_flags32_t non_fragment_flags = 
+            src_table->flags & (EcsTableHasUnion|EcsTableHasDontFragment);
+        if (non_fragment_flags) {
+            diff->added_flags |= non_fragment_flags;
             flecs_notify_on_add(world, src_table, src_table, 
                 ECS_RECORD_TO_ROW(record->row), 1, diff, evt_flags, 0, 
                     construct, true);
@@ -6955,6 +7023,7 @@ void ecs_clear(
         };
 
         flecs_commit(world, entity, r, &world->store.root, &diff, false, 0);
+        flecs_entity_remove_non_fragmenting(world, entity, NULL);
     }    
 
     flecs_defer_end(world, stage);
@@ -7509,6 +7578,8 @@ void ecs_delete(
             if (row_flags & EcsEntityIsTraversable) {
                 flecs_table_traversable_add(r->table, -1);
             }
+
+            flecs_entity_remove_non_fragmenting(world, entity, r);
 
             /* Merge operations before deleting entity */
             flecs_defer_end(world, stage);
@@ -35885,6 +35956,17 @@ void flecs_id_record_init_sparse(
     }
 }
 
+void flecs_id_record_init_dont_fragment(
+    ecs_world_t *world,
+    ecs_id_record_t *idr)
+{
+    if (world->idr_non_fragmenting_head) {
+        world->idr_non_fragmenting_head->non_fragmenting.prev = idr;
+    }
+    idr->non_fragmenting.next = world->idr_non_fragmenting_head;
+    world->idr_non_fragmenting_head = idr;
+}
+
 static
 void flecs_id_record_fini_sparse(
     ecs_world_t *world,
@@ -36111,6 +36193,9 @@ ecs_id_record_t* flecs_id_record_new(
             if (ecs_has_id(world, tgt, EcsSparse)) {
                 idr->flags |= EcsIdIsSparse;
             }
+            if (ecs_has_id(world, tgt, EcsDontFragment)) {
+                idr->flags |= EcsIdDontFragment;
+            }
         }
     }
 
@@ -36122,6 +36207,10 @@ ecs_id_record_t* flecs_id_record_new(
         if (ECS_IS_PAIR(id) && ECS_PAIR_SECOND(id) == EcsUnion) {
             flecs_id_record_init_sparse(world, idr);
         }
+    }
+
+    if (idr->flags & EcsIdDontFragment) {
+        flecs_id_record_init_dont_fragment(world, idr);
     }
 
     if (ecs_should_log_1()) {
@@ -39933,6 +40022,17 @@ void flecs_compute_table_diff(
                 return;
             }
         }
+    } else {
+        ecs_id_record_t *idr = flecs_id_record_get(world, id);
+        if (idr->flags & EcsIdDontFragment) {
+            ecs_table_diff_t *diff = flecs_bcalloc(
+                &world->allocators.table_diff);
+            diff->added.count = 1;
+            diff->added.array = flecs_wdup_n(world, ecs_id_t, 1, &id);
+            diff->added_flags = EcsTableHasDontFragment|EcsTableHasSparse;
+            edge->diff = diff;
+            return;
+        }
     }
 
     ecs_id_t *ids_node = node_type.array;
@@ -40126,7 +40226,6 @@ void flecs_add_with_property(
             flecs_add_with_property(world, idr_with_wildcard, dst_type, ra, o);
         }
     }
-
 }
 
 static
@@ -40163,6 +40262,12 @@ ecs_table_t* flecs_find_table_with(
         r = with;
     }
 
+    if (idr->flags & EcsIdDontFragment) {
+        /* Component doesn't fragment tables */
+        node->flags |= EcsTableHasDontFragment;
+        return node;
+    }
+
     /* Create sequence with new id */
     ecs_type_t dst_type;
     int res = flecs_type_new_with(world, &dst_type, &node->type, with);
@@ -40196,13 +40301,20 @@ ecs_table_t* flecs_find_table_without(
     ecs_table_t *node,
     ecs_id_t without)
 {
+    ecs_id_record_t *idr = NULL;
+
     if (ECS_IS_PAIR(without)) {
         ecs_entity_t r = 0;
-        ecs_id_record_t *idr = NULL;
         r = ECS_PAIR_FIRST(without);
         idr = flecs_id_record_get(world, ecs_pair(r, EcsWildcard));
         if (idr && idr->flags & EcsIdIsUnion) {
             without = ecs_pair(r, EcsUnion);
+        }
+    } else {
+        idr = flecs_id_record_get(world, without);
+        if (idr && idr->flags & EcsIdDontFragment) {
+            /* Component doesn't fragment tables */
+            return node;
         }
     }
 
@@ -40246,7 +40358,7 @@ void flecs_init_edge_for_add(
 
     flecs_table_ensure_hi_edge(world, &table->node.add, id);
 
-    if ((table != to) || (table->flags & EcsTableHasUnion)) {
+    if ((table != to) || (table->flags & (EcsTableHasUnion|EcsTableHasDontFragment))) {
         /* Add edges are appended to refs.next */
         ecs_graph_edge_hdr_t *to_refs = &to->node.refs;
         ecs_graph_edge_hdr_t *next = to_refs->next;

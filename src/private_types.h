@@ -309,6 +309,9 @@ struct ecs_world_t {
     ecs_id_record_t *idr_childof_wildcard;
     ecs_id_record_t *idr_identifier_name;
 
+    /* Head of list that points to all non-fragmenting component ids */
+    ecs_id_record_t *idr_non_fragmenting_head;
+
     /* -- Mixins -- */
     ecs_world_t *self;
     ecs_observable_t observable;

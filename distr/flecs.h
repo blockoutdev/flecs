@@ -392,6 +392,7 @@ extern "C" {
 #define EcsEntityIsId                 (1u << 31)
 #define EcsEntityIsTarget             (1u << 30)
 #define EcsEntityIsTraversable        (1u << 29)
+#define EcsEntityHasDontFragment      (1u << 28)
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -571,7 +572,7 @@ extern "C" {
 #define EcsTableHasOnTableCreate       (1u << 21u)
 #define EcsTableHasOnTableDelete       (1u << 22u)
 #define EcsTableHasSparse              (1u << 23u)
-// #define EcsTableHasDontFragment     (1u << 24u) /* Can't happen */
+#define EcsTableHasDontFragment        (1u << 24u)
 #define EcsTableHasUnion               (1u << 25u)
 
 #define EcsTableHasTraversable         (1u << 26u)
