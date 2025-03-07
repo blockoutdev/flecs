@@ -8349,6 +8349,7 @@ bool ecs_has_id(
     /* Make sure we're not working with a stage */
     world = ecs_get_world(world);
 
+    ecs_id_record_t *idr = flecs_id_record_get(world, id);
     ecs_record_t *r = flecs_entities_get_any(world, entity);
     ecs_assert(r != NULL, ECS_INTERNAL_ERROR, NULL);
     ecs_table_t *table = r->table;
@@ -8359,13 +8360,20 @@ bool ecs_has_id(
             return true;
         }
     } else {
-        ecs_id_record_t *idr = flecs_id_record_get(world, id);
         if (idr) {
             ecs_table_record_t *tr = flecs_id_record_get_table(idr, table);
             if (tr) {
                 return true;
             }
         }
+    }
+
+    if (idr->flags & EcsIdDontFragment) {
+        if (!(r->row & EcsEntityHasDontFragment)) {
+            return false;
+        }
+        
+        return flecs_sparse_get(idr->sparse, 0, entity) != NULL;
     }
 
     if (!(table->flags & (EcsTableHasUnion|EcsTableHasIsA))) {

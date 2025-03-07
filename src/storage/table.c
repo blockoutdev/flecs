@@ -733,7 +733,8 @@ void flecs_table_invoke_hook(
     ecs_assert(type_index >= 0, ECS_INTERNAL_ERROR, NULL);
     ecs_assert(type_index < table->type.count, ECS_INTERNAL_ERROR, NULL);
     const ecs_table_record_t *tr = &table->_->records[type_index];
-    flecs_invoke_hook(world, table, tr, count, row, entities, 
+    ecs_id_record_t *idr = (ecs_id_record_t*)tr->hdr.cache;
+    flecs_invoke_hook(world, table, idr, tr, count, row, entities, 
         table->type.array[type_index], column->ti, event, callback);
 }
 

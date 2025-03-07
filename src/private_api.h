@@ -112,6 +112,7 @@ void* flecs_get_base_component(
 void flecs_invoke_hook(
     ecs_world_t *world,
     ecs_table_t *table,
+    const ecs_id_record_t *idr,
     const ecs_table_record_t *tr,
     int32_t count,
     int32_t row,

@@ -515,8 +515,8 @@ void flecs_override_copy(
     ecs_iter_action_t on_set = ti->hooks.on_set;
     if (on_set) {
         const ecs_entity_t *entities = &ecs_table_entities(table)[offset];
-        flecs_invoke_hook(world, table, tr, count, offset, entities,
-            ti->component, ti, EcsOnSet, on_set);
+        flecs_invoke_hook(world, table, (ecs_id_record_t*)tr->hdr.cache, tr, 
+            count, offset, entities, ti->component, ti, EcsOnSet, on_set);
     }
 }
 
